@@ -171,7 +171,7 @@ async def get_users(
 
 @router.get("/{user_id}")
 async def get_user(
-    user_id: Annotated[int, Path(title="The ID of the user to get")],
+    user_id: Annotated[UUID, Path(title="The ID of the user to get")],
     db: Annotated[Session, Depends(get_db)]
 ):
     """

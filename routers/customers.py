@@ -45,7 +45,7 @@ router = APIRouter(
 
 @router.get("/{customer_id}")
 async def get_customer(
-    customer_id: Annotated[int, Path(title="The ID of the customer to get")],
+    customer_id: Annotated[UUID, Path(title="The ID of the customer to get")],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -58,7 +58,7 @@ async def get_customer(
 
 @router.get("/")
 async def get_customers(
-    filter_query: Annotated[FilterParams, Query()],
+    filter_query: Annotated[CustomerFilterParams, Query()],
     db: Annotated[Session, Depends(get_db)]
 ):
     """

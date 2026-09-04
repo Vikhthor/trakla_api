@@ -11,12 +11,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class FilterParams(BaseModel):
     model_config = {"extra": "forbid"} # optionally restrict the query parameters that you want to receive. Here, if a client tries to send some extra data in the query parameters, they will receive an error response.
-    limit: int = Field(100, gt=0, le=100)
-    offset: int = Field(0, ge=0)
-    page: int = Field(0, ge=0)
-    order_by: Literal["created_at", "updated_at"] = "created_at"
-    tags: list[str] = []
-    search: str | None
+    limit: int | None = Field(100, gt=0, le=100)
+    offset: int | None = Field(0, ge=0)
+    page: int | None = Field(0, ge=0)
+    order_by: Literal["created_at", "updated_at"] | None = "created_at"
+    tags: list[str] | None = []
+    search: str | None = None
 
 # openssl rand -hex 32
 SECRET_KEY = "4463234cf682cd70cdc0e87601d321e1dd0474741db08e9379d8a82c9324c4dd"

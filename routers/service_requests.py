@@ -31,7 +31,7 @@ router = APIRouter(
 
 @router.get("/{request_id}")
 async def get_service_request(
-    request_id: Annotated[int, Path(title="The ID of the service request to get")],
+    request_id: Annotated[UUID, Path(title="The ID of the service request to get")],
     db: Annotated[Session, Depends(get_db)]
 ):
     """

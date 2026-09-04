@@ -65,7 +65,7 @@ router = APIRouter(
 
 @router.get("/{order_id}")
 async def get_work_order(
-    order_id: Annotated[int, Path(title="The ID of the work order to get")],
+    order_id: Annotated[UUID, Path(title="The ID of the work order to get")],
     db: Annotated[Session, Depends(get_db)]
 ):
     """

@@ -4,3 +4,5 @@ database.db
 .env
 alembic.ini
 alembic/
+*.pyc
+__pycache__/
