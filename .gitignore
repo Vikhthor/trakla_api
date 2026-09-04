@@ -1,0 +1,6 @@
+database.db
+.venv/
+*.egg-info
+.env
+alembic.ini
+alembic/
