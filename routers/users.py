@@ -32,9 +32,18 @@ class SignUpData(BaseModel):
     otp: str
     tmp_id: str
     password: str
-    user_type: str = "system"
+    user_type: str | None = "system"
     address: str | None = None
     organization_id: str | None = None
+
+class InviteData(BaseModel):
+    email: str
+    phone: str | None = None
+    full_name: str
+    password: str | None
+    user_type: str | None = "system"
+    address: str | None = None
+    organization_id: str
 
 
 router = APIRouter(
@@ -50,7 +59,8 @@ def verify_password(plain_password, hashed_password):
     return password_hash.verify(plain_password, hashed_password)
 
 def get_password_hash(password):
-    return password_hash.hash(password)
+    if password:
+        return password_hash.hash(password)
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
@@ -136,6 +146,41 @@ async def signup_user(
         "user_type": user.user_type,
         "organization_id": user.organization_id,
         "disabled": user.disabled,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at
+    }
+    return user_data
+
+@router.post("/invite")
+async def invite_user(
+    form_data: Annotated[InviteData, Form()],
+    db: Annotated[Session, Depends(get_db)]
+):
+    """
+        Create new customer
+    """
+    # TODO verify form_data.otp with form_data.tmp_id
+    user = User(
+        full_name = form_data.full_name,
+        email = form_data.email,
+        phone = form_data.phone,
+        address = form_data.address,
+        user_type = form_data.user_type,
+        organization_id = form_data.organization_id,
+        password = get_password_hash(form_data.password)
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    user_data = {
+        "id": user.id,
+        "full_name": user.full_name,
+        "email": user.email,
+        "phone": user.phone,
+        "address": user.address,
+        "user_type": user.user_type,
+        "organization_id": user.organization_id,
+        "active": False,
         "created_at": user.created_at,
         "updated_at": user.updated_at
     }

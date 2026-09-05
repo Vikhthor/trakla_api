@@ -57,7 +57,7 @@ class WorkOrderUpdateModel(BaseModel):
     service_request_id: UUID | None = None
 
 router = APIRouter(
-    prefix="/v1/work_orders",
+    prefix="/v1/work-orders",
     tags=["work-orders"],
     # dependencies=[Depends(get_token_header)],
     responses={404: {"description": "Work order not found"}},

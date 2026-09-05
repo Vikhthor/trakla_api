@@ -16,7 +16,8 @@ class User(SQLModel, table=True):
     address: str
     user_type: UserType
     organization_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="organization.id")
-    disabled: bool | None = None
-    password: str | None = None
+    disabled: bool | None = Field(default=None)
+    password: str | None = Field(default=None)
+    active: bool | None = Field(default=True)
     created_at: str | None  = Field(default_factory=datetime.now)
     updated_at: str | None  = Field(default_factory=datetime.now)
