@@ -2,6 +2,7 @@ database.db
 .venv/
 *.egg-info
 .env
+*.db
 alembic.ini
 alembic/
 *.pyc
