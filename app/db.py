@@ -3,6 +3,9 @@ from sqlalchemy import MetaData
 from .models import *
 from alembic import command
 from alembic.config import Config
+from .config import get_settings
+
+settings = get_settings()
 
 def run_migrations():
     cfg = Config("alembic.ini")
@@ -16,8 +19,18 @@ def run_migrations():
 
 #     model_config = SettingsConfigDict(env_file=".env")
 
-connect_args = {"check_same_thread": False}
-engine = create_engine("sqlite:///database.db", connect_args=connect_args)
+connect_args = {
+    # "check_same_thread": False
+}
+connection_uri = "sqlite:///database.db"
+db_host = settings.db_host
+db_name = settings.db_name
+db_user = settings.db_user
+db_password = settings.db_password
+if db_host:
+    connection_uri = f"mysql+pymysql://{db_user}:{db_password}@{db_host}/{db_name}?charset=utf8mb4"
+
+engine = create_engine(connection_uri, connect_args=connect_args)
 
 naming_convention = {
     "ix": "ix_%(column_0_label)s",
@@ -26,11 +39,11 @@ naming_convention = {
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s"
 }
+SQLModel.metadata.naming_convention = naming_convention
 
 def create_db_and_tables(): # call in main.py
-    # SQLModel.metadata = MetaData(naming_convention=naming_convention)
-    # SQLModel.metadata.create_all(engine)
-    run_migrations()
+    SQLModel.metadata.create_all(engine)
+    # run_migrations()
 
 async def get_db():
     db = Session(engine)

@@ -8,6 +8,6 @@ class BillOfMaterialItem(SQLModel, table=True):
     asset_type_name: str
     work_order: str
     maintenance_schedule: str
-    organization_id: int | None  = Field(default=None, index=True, foreign_key="organization.id")
+    organization_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="organization.id")
     created_at: str | None  = Field(default_factory=datetime.now)
     updated_at: str | None  = Field(default_factory=datetime.now)

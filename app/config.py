@@ -2,11 +2,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 class Settings(BaseSettings):
-    db_url: str
+    model_config = SettingsConfigDict(env_file=".env")
+    db_host: str
     db_name: str
     db_user: str
     db_password: str
-    model_config = SettingsConfigDict(env_file=".env")
+    allow_cors: str
 
 @lru_cache
 def get_settings():

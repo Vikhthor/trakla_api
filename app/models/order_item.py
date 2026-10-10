@@ -3,6 +3,7 @@ from datetime import datetime
 import uuid
 
 class OrderItem(SQLModel, table=True):
+    __tablename__ = "order_item"
     # id: int | None = Field(default=None, primary_key=True)
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     item_name: str

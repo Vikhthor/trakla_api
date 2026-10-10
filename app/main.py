@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 import random
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
+from .config import get_settings
 from .routers import customer_groups, customers, maintenance_schedules, order_items, organizations, service_requests, users, vendor_groups, work_orders
 from .routers import contacts, asset_types, analytics, vendors, technicians
 
@@ -21,13 +22,14 @@ app = FastAPI(root_path="/api", lifespan=lifespan)
 # def on_startup():
 #     create_db_and_tables()
 
-origins = [
-    "http://localhost:3000"
-]
+settings = get_settings()
+allow_cors = settings.allow_cors or ["http://localhost:3000"]
+if allow_cors and isinstance(allow_cors, str):
+    allow_cors = allow_cors.split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=allow_cors,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
