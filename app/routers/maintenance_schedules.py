@@ -34,6 +34,7 @@ class MaintenanceScheduleModel(BaseModel):
     instructions: str | None = None
     assignee_type: MaintenanceScheduleAssigneeType | None = "Technician"
     assignee_id: UUID | None = None
+    require_pow: bool | None = None
     currency: str
     labour_cost: float
     tax: float
@@ -59,6 +60,7 @@ class MaintenanceScheduleUpdateModel(BaseModel):
     instructions: str | None = None
     assignee_type: MaintenanceScheduleAssigneeType | None = "Technician"
     assignee_id: UUID | None = None
+    require_pow: bool | None = None
     currency: str
     labour_cost: float
     tax: float

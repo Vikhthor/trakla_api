@@ -60,7 +60,7 @@ async def get_dashboard_stats(
         "type": "total_customers",
         "result": total_customers,
         "rate": customer_rate,
-        'rate_description': "New customers for the last X months",
+        'rate_description': "New customers for the last 6 months",
         'rate_remark': customer_remark
     })
 
@@ -84,7 +84,7 @@ async def get_dashboard_stats(
         "type": "total_work_orders",
         "result": total_work_orders,
         "rate": work_order_rate,
-        'rate_description': "New work orders for the last X months",
+        'rate_description': "New work orders for the last 6 months",
         'rate_remark': work_order_remark
     })
 
@@ -108,7 +108,7 @@ async def get_dashboard_stats(
         "type": "total_service_requests",
         "result": total_service_requests,
         "rate": service_request_rate,
-        'rate_description': "New service requests for the last X months",
+        'rate_description': "New service requests for the last 6 months",
         'rate_remark': service_request_remark
     })
     

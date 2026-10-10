@@ -70,8 +70,10 @@ class WorkOrder(SQLModel, table=True):
     assignee_type: WorkOrderAssigneeType | None = Field(default=None)
     assignee_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     assignee: User | None = Relationship(sa_relationship_kwargs={"foreign_keys": "[WorkOrder.assignee_id]"})
+    require_pow: bool | None = Field(default=False)
+    proof_of_work: str | None = Field(default=False)
     completion_status: WorkOrderCompletionStatus = "Pending"
-    workflow_status: str | None  = Field(default=None)
+    workflow_status: str | None = Field(default=None)
     currency: Currency | None = "NGN"
     labour_cost: float | None = Field(default=None)
     tax: float | None = Field(default=None)

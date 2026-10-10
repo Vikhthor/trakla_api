@@ -36,6 +36,7 @@ class WorkOrderModel(BaseModel):
     instructions: str | None = None
     assignee_type: WorkOrderAssigneeType | None = None
     assignee_id: UUID | None = None
+    require_pow: bool | None = None
     completion_status: WorkOrderCompletionStatus = "Pending"
     currency: Currency | None = "NGN"
     labour_cost: float | None = None
@@ -60,6 +61,8 @@ class WorkOrderUpdateModel(BaseModel):
     instructions: str | None = None
     assignee_type: WorkOrderAssigneeType | None = None
     assignee_id: UUID | None = None
+    require_pow: bool | None = None
+    proof_of_work: str | None = None
     completion_status: WorkOrderCompletionStatus = "Pending"
     currency: Currency | None = "NGN"
     labour_cost: float | None = None
@@ -170,6 +173,7 @@ async def create_work_order(
         instructions = work_order.instructions,
         assignee_type = work_order.assignee_type,
         assignee_id = work_order.assignee_id,
+        require_pow = work_order.require_pow,
         completion_status = work_order.completion_status,
         currency = work_order.currency,
         labour_cost = work_order.labour_cost,
@@ -240,6 +244,7 @@ async def update_work_order(
         current_order.status = "Assigned"
 
     current_order.updated_at = str(datetime.now())
+    current_order.modifier_id = current_user.id
     db.add(current_order)
     db.commit()
     db.refresh(current_order)

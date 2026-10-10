@@ -19,6 +19,7 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     phone: str = Field(unique=True, index=True)
     address: str | None = Field(default=None)
+    image: str | None = Field(default=None)
     user_type: UserType
     roles: list["UserRole"] = Relationship(
         back_populates="users", 

@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import datetime
 import uuid
 from .user import User
+from .customer import Customer
 
 class ServiceRequestStatus(str, Enum):
     open = "Open"
@@ -18,6 +19,7 @@ class ServiceRequest(SQLModel, table=True):
     description: str
     user_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="user.id")
     customer_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="customer.id")
+    customer: Customer | None = Relationship(sa_relationship_kwargs={"foreign_keys": "[ServiceRequest.customer_id]"})
     organization_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="organization.id")
     status: ServiceRequestStatus = Field(default='Open')
     rating: float | None = Field(default=None)

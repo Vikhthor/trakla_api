@@ -53,6 +53,7 @@ class MaintenanceSchedule(SQLModel, table=True):
     assignee_type: MaintenanceScheduleAssigneeType = Field(default="Technician")
     assignee_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     assignee: User | None = Relationship(sa_relationship_kwargs={"foreign_keys": "[MaintenanceSchedule.assignee_id]"})
+    require_pow: bool | None = Field(default=False)
     currency: str
     labour_cost: float
     tax: float
