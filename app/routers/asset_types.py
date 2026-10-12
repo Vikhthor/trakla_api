@@ -35,12 +35,12 @@ router = APIRouter(
     prefix="/v1/asset-types",
     tags=["asset_types"],
     # dependencies=[Depends(get_token_header)],
-    responses={404: {"description": "Customer group not found"}},
+    responses={404: {"description": "Asset type not found"}},
 )
 
 @router.get("/{asset_type_id}")
 async def get_asset_type(
-    asset_type_id: Annotated[UUID, Path(title="The ID of the customer group to get")],
+    asset_type_id: Annotated[UUID, Path(title="The ID of the asset type to get")],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -57,7 +57,7 @@ async def get_asset_types(
     db: Annotated[Session, Depends(get_db)]
 ):
     """
-       Get filtered customers
+       Get filtered asset types
     """
     limit = filter_query.limit
     offset = filter_query.offset
@@ -65,8 +65,8 @@ async def get_asset_types(
         offset = limit*(filter_query.page - 1)
     statement = select(AssetType).offset(offset).limit(limit)
     # statement = select(Hero).where(Hero.name == "Spider-Boy")
-    customers = db.exec(statement).all()
-    return customers
+    asset_types = db.exec(statement).all()
+    return asset_types
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_asset_type(
@@ -74,7 +74,7 @@ async def create_asset_type(
     db: Annotated[Session, Depends(get_db)]
 ) -> AssetType:
     """
-       Create new customer group
+       Create new asset type
     """
     group = AssetType(
         asset_type_name = asset_type.asset_type_name,

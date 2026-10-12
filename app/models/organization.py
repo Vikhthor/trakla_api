@@ -9,6 +9,8 @@ class Organization(SQLModel, table=True):
     organization_name: str # user organization
     brand_icon: str | None = Field(default=None)
     logo: str | None = Field(default=None)
+    email: str | None = Field(default=None)
+    phone: str | None = Field(default=None)
     address: str
     city: str | None = Field(default=None)
     state: str | None = Field(default=None)

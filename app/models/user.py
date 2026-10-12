@@ -21,6 +21,8 @@ class User(SQLModel, table=True):
     address: str | None = Field(default=None)
     image: str | None = Field(default=None)
     user_type: UserType
+    department_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="department.id")
+    department: "Department" = Relationship(back_populates="users", sa_relationship_kwargs={"foreign_keys": "[User.department_id]"})
     roles: list["UserRole"] = Relationship(
         back_populates="users", 
         link_model=UserRoles,
@@ -30,12 +32,14 @@ class User(SQLModel, table=True):
         }
     )
     is_online: bool | None = Field(default=False)
+    customer_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="customer.id")
+    customer: "Customer" = Relationship(back_populates="users", sa_relationship_kwargs={"foreign_keys": "[User.customer_id]"})
     organization_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="organization.id")
     organization: Organization | None = Relationship(back_populates="users", sa_relationship_kwargs={"foreign_keys": "[User.organization_id]"})
     disabled: bool | None = Field(default=None)
     password: str | None = Field(default=None)
     active: bool | None = Field(default=True)
-    last_login: str | None  = Field(default_factory=datetime.now)
+    last_login: str | None  = Field(default=None)
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     created_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[User.owner_id]"})
     created_at: str | None  = Field(default_factory=datetime.now)

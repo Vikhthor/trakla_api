@@ -1,5 +1,6 @@
 database.db
 .venv/
+logs/
 *.egg-info
 .env
 *.db

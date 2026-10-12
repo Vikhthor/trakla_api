@@ -9,6 +9,7 @@ from .user import User
 class UserRole(SQLModel, table=True):
     __tablename__ = "user_role"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    role_name: str = Field(unique=True, index=True)
     users: list[User] = Relationship(
         back_populates="roles", 
         link_model=UserRoles,
@@ -18,6 +19,7 @@ class UserRole(SQLModel, table=True):
         }
     )
     permissions: list["UserPermission"] = Relationship(back_populates="role")
+    organization_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="organization.id")
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     created_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[UserRole.owner_id]"})
     created_at: str | None  = Field(default_factory=datetime.now)

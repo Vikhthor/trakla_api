@@ -18,6 +18,7 @@ class Customer(SQLModel, table=True):
     primary_contact_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="contact.id")
     primary_contact: "Contact" = Relationship(sa_relationship_kwargs={"foreign_keys": "[Customer.primary_contact_id]"})
     contacts: list["Contact"] = Relationship(back_populates="customers", link_model=CustomerContacts)
+    users: list[User] = Relationship(back_populates="customer", sa_relationship_kwargs={"foreign_keys": "[User.customer_id]"})
     organization_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="organization.id")
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     created_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[Customer.owner_id]"})

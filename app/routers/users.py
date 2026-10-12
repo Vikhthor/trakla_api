@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import secrets, math, random
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import User, Organization
+from ..models import User, Organization, UserRole, Department
 from ..utils import FilterParams, get_current_user, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
 class UserFilterParams(FilterParams):
@@ -18,10 +18,14 @@ class UserFilterParams(FilterParams):
 class UserModel(BaseModel):
     model_config = {"extra": "forbid"}
     email: str | None = None
-    phone: str
+    phone: str | None = None
     first_name: str | None = None
     last_name: str | None = None
     disabled: bool | None = None
+    active: bool | None = None
+    customer_id: UUID | None = None
+    department_name: str | None = None
+    department_id: UUID | None = None
     password: str | None = None
     otp: str | None = None
     tmp_id: str | None = None
@@ -43,18 +47,28 @@ class SignUpData(BaseModel):
     password: str
     user_type: str | None = "system"
     address: str | None = None
-    organization_id: str | None = None
+    organization_id: UUID | None = None
     organization: OrganizationModel | None = None
+
+class RoleData(BaseModel):
+    id: UUID
+    role_name: str | None = None
 
 class InviteData(BaseModel):
     email: str
     phone: str | None = None
     first_name: str
     last_name: str
-    password: str | None
+    password: str | None = None
     user_type: str | None = "system"
+    image: str | None = None
     address: str | None = None
-    organization_id: str
+    active: bool | None = None
+    disabled: bool | None = None
+    customer_id: UUID | None = None
+    department_name: str | None = None
+    organization_id: UUID
+    roles: list[RoleData] | None = None
 
 
 router = APIRouter(
@@ -111,6 +125,11 @@ async def login(
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
+    user.last_login = str(datetime.now())
+    user.is_online = True # TODO: Use websocket
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return {"access_token": access_token, "token_type": "bearer", "user": user}
 
 @router.get("/me")
@@ -171,22 +190,57 @@ async def signup_user(
 
 @router.post("/invite")
 async def invite_user(
-    form_data: Annotated[InviteData, Form()],
+    user_data: Annotated[InviteData, Body()],
+    current_user: Annotated[UserModel, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
-        Create new customer
+        Create new user
     """
-    # TODO verify form_data.otp with form_data.tmp_id
+    roles = []
+    user_roles = user_data.roles or []
+    for user_role in user_roles:
+        role = db.exec(select(UserRole).where(UserRole.id == user_role.id).first())
+        if role:
+            roles.append(role)
+
+    department = None
+    if user_data.department_name:
+        statement = select(Department).where(
+            Department.organization_id == current_user.organization_id,
+            Department.department_name == user_data.department_name
+        )
+        department = db.exec(statement).first()
+        if not department:
+            department = Department(
+                department_name = user_data.department_name,
+                organization_id = current_user.organization_id,
+                owner_id=current_user.id,
+                modifier_id=current_user.id,
+                created_at=str(datetime.now()),
+                updated_at=str(datetime.now())
+            )
+
+    full_name = user_data.first_name
+    if user_data.last_name:
+        full_name = f"{user_data.first_name} {user_data.last_name}"
+    
     user = User(
-        first_name = form_data.first_name,
-        last_name = form_data.last_name,
-        email = form_data.email,
-        phone = form_data.phone,
-        address = form_data.address,
-        user_type = form_data.user_type,
-        organization_id = form_data.organization_id,
-        password = get_password_hash(form_data.password)
+        first_name = user_data.first_name,
+        last_name = user_data.last_name,
+        full_name = full_name,
+        email = user_data.email,
+        phone = user_data.phone,
+        address = user_data.address,
+        image = user_data.image,
+        user_type = user_data.user_type,
+        disabled = user_data.disabled,
+        active = user_data.active or False,
+        roles = roles,
+        customer_id = user_data.customer_id,
+        department = department,
+        organization_id = user_data.organization_id,
+        password = get_password_hash(user_data.password)
     )
     db.add(user)
     db.commit()
@@ -204,6 +258,7 @@ async def invite_user(
         "created_at": user.created_at,
         "updated_at": user.updated_at
     }
+    #TODO: Send invite email to user
     return user_data
 
 @router.get("/")
@@ -221,17 +276,10 @@ async def get_users(
     statement = select(User).offset(offset).limit(limit)
     users = db.exec(statement).all()
     users_data = [{
-        "id": user.id,
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "email": user.email,
-        "phone": user.phone,
-        "address": user.address,
-        "user_type": user.user_type,
-        "organization_id": user.organization_id,
-        "disabled": user.disabled,
-        "created_at": user.created_at,
-        "updated_at": user.updated_at
+        **user.model_dump(),
+        "department": user.department,
+        "roles": user.roles,
+        "created_by": user.created_by
     } for user in users]
     return users_data
 
@@ -263,34 +311,64 @@ async def get_user(
 
 @router.put("/{user_id}")
 async def update_user(
-    user_id: Annotated[int, Path(title="The ID of the user to update")],
+    user_id: Annotated[str, Path(title="The ID of the user to update")],
     user: UserModel,
     db: Annotated[Session, Depends(get_db)]
 ):
     """
         Update single user
     """
-    current_user = db.get(User, user_id)
+    current_user = None
+    try:
+        current_user = db.get(User, UUID(user_id))
+    except ValueError:
+        current_user = db.exec(select(User).where(or_(
+            User.email == user_id,
+            User.phone == user_id
+        ))).first()
+
     if not current_user:
         raise HTTPException(status_code=404, detail="User not found")
     user_dict = user.model_dump(exclude_unset=True)
     otp = user_dict.pop('otp', None)
     tmp_id = user_dict.pop('tmp_id', None)
+    is_verified = False
 
     for k, v in user_dict.items():
         if k == 'organization_id':
             continue
-        if k in ['email', 'phone']:
+        if k in ['email', 'phone', 'password'] and not is_verified:
             pass # TODO verify user.otp with user.tmp_id
-        if k == 'password_reset_id':
-            continue
         if k == 'password':
-            pass # TODO check password_reset_id embedded in email link is valid (email can be sent in OTP request)
+            v = get_password_hash(v)
+        if k == 'roles':
+            roles = []
+            user_roles = v or []
+            for user_role in user_roles:
+                role = db.exec(select(UserRole).where(UserRole.id == user_role.id).first())
+                if role:
+                    roles.append(role)
+            v = roles
+        if k == "department_name":
+            statement = select(Department).where(
+                Department.organization_id == current_user.organization_id,
+                Department.department_name == v
+            )
+            department = db.exec(statement).first()
+            if not department:
+                department = Department(
+                    department_name = v,
+                    organization_id = current_user.organization_id,
+                    owner_id=current_user.id,
+                    modifier_id=current_user.id,
+                    created_at=str(datetime.now()),
+                    updated_at=str(datetime.now())
+                )
+            current_user.department = department
+            continue
         current_user.sqlmodel_update({k: v})
 
-    full_name = user_dict.get("first_name")
-    if user_dict.get("last_name"):
-        full_name = f"{user_dict.get("first_name")} {user_dict.get("last_name")}"
+    full_name = f"{current_user.first_name} {current_user.last_name}"
     current_user.full_name = full_name
     current_user.updated_at = str(datetime.now())
     db.add(current_user)

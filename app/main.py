@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .routers import customer_groups, customers, maintenance_schedules, order_items, organizations, service_requests, users, vendor_groups, work_orders
-from .routers import contacts, asset_types, analytics, vendors, technicians
+from .routers import contacts, asset_types, analytics, vendors, technicians, roles, departments
 
 from .db import create_db_and_tables
 
@@ -48,6 +48,8 @@ app.include_router(vendor_groups.router)
 app.include_router(contacts.router)
 app.include_router(technicians.router)
 app.include_router(asset_types.router)
+app.include_router(roles.router)
+app.include_router(departments.router)
 app.include_router(analytics.router)
 
 

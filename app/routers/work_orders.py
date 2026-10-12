@@ -3,12 +3,16 @@ from pydantic import BaseModel, AfterValidator, Field
 from enum import Enum
 from typing import Annotated, Literal
 import random
+from math import asin, cos, radians, sin, sqrt
+from geopy.distance import geodesic
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import WorkOrder, WorkOrderStatus, WorkOrderCategory, WorkOrderPriority, \
     WorkOrderAssigneeType, WorkOrderCompletionStatus, Currency, User, OrderItem, AssetType
 from ..utils import FilterParams, get_current_user
+
+EARTH_RADIUS_M = 6_371_000  # mean Earth radius in meters
 
 class WorkOrderFilterParams(FilterParams):
     organization_id: UUID
@@ -76,6 +80,20 @@ router = APIRouter(
     # dependencies=[Depends(get_token_header)],
     responses={404: {"description": "Work order not found"}},
 )
+
+def distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    phi1, phi2 = radians(lat1), radians(lat2)
+    d_phi = radians(lat2 - lat1)
+    d_lambda = radians(lon2 - lon1)
+
+    a = sin(d_phi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(d_lambda / 2) ** 2
+    return 2 * EARTH_RADIUS_M * asin(sqrt(a))
+
+# lagos = (6.5244, 3.3792)   # (lat, lon)
+# abuja = (9.0765, 7.3986)
+# d = geodesic(lagos, abuja)
+# print(d.meters)
+# See also geopy.distance.great_circle
 
 @router.get("/{order_id}")
 async def get_work_order(

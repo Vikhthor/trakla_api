@@ -2,6 +2,7 @@ from .audit_trail import AuditTrail
 from .contact import Contact
 from .customer import Customer
 from .customer_group import CustomerGroup
+from .department import Department
 from .organization import Organization
 from .asset_type import AssetType
 from .bom_item import BillOfMaterialItem

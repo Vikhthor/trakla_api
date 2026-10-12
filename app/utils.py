@@ -55,6 +55,13 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: An
         raise HTTPException(status_code=401, detail="Inactive user")
     return user
 
+def validate_user_type(user: User, allowed_types: str | list[str] = "system"):
+    if isinstance(allowed_types, str):
+        allowed_types = allowed_types.replace(" ","").split(",")
+
+    if user.user_type not in allowed_types:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
 
 DATE_FORMAT = "%Y-%m-%d"
 TIME_FORMAT = "%H:%M:%S.%f"

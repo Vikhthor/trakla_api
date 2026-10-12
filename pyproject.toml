@@ -24,6 +24,7 @@ dependencies = [
     "schedule>=1.2.2",
     "traceback-with-variables>=2.2.1",
     "pymysql>=1.2.3",
+    "geopy>=2.5.0",
 ]
 [dependency-groups]
 dev = [
