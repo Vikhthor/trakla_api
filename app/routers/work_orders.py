@@ -147,8 +147,11 @@ async def create_work_order(
     """
        Create new work order
     """
-    if work_order.assignee_id and work_order.status == "Open":
-        work_order.status = "Assigned"
+    if work_order.status == "Open":
+        if work_order.assignee_id:
+            work_order.status = "Assigned"
+        if work_order.scheduled_date:
+            work_order.status = "Scheduled"
 
     asset_type = None
     if work_order.asset_type_id:
@@ -258,8 +261,11 @@ async def update_work_order(
             continue
         current_order.sqlmodel_update({k: v})
 
-    if current_order.status == "Open" and current_order.assignee_id:
-        current_order.status = "Assigned"
+    if current_order.status == "Open":
+        if current_order.assignee_id:
+            current_order.status = "Assigned"
+        if current_order.scheduled_date:
+            current_order.status = "Scheduled"
 
     current_order.updated_at = str(datetime.now())
     current_order.modifier_id = current_user.id

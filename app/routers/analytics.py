@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Query, Path, Depends, HTTPException, status, APIRouter, Header
-from pydantic import BaseModel, AfterValidator, Field
+from pydantic import BaseModel, AfterValidator, Field, ConfigDict
 from enum import Enum
 from typing import Annotated, Literal
 import random
-from datetime import datetime
+from datetime import datetime, date
 from uuid import UUID
 from ..db import Session, get_db, select, col, or_, get_count, func, case
 from ..models import WorkOrder, User, Customer, ServiceRequest, Technician
@@ -14,6 +14,13 @@ class AnalyticsFilterParams(FilterParams):
     customer_id: UUID | None = None
     from_date: str | None = None
     to_date: str | None = None
+
+class StatusTimelinePoint(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    date: date
+    total_count: int
+    open: int
+    completed: int
 
 router = APIRouter(
     prefix="/v1/analytics",
@@ -200,7 +207,7 @@ async def get_dashboard_stats(
     })
     return resp_data
 
-@router.get("/status-timeline")
+@router.get("/status-timeline", response_model=list[StatusTimelinePoint])
 async def get_status_timeline(
     filter_query: Annotated[AnalyticsFilterParams, Query()],
     current_user: Annotated[User, Depends(get_current_user)],
@@ -224,22 +231,18 @@ async def get_status_timeline(
     month_bucket = func.strftime('%Y-%m-%d', WorkOrder.created_at).label("date")
     open_statuses = ["Open","Scheduled","Assigned","In Progress","On Hold","Quality Check"]
     closed_statuses = ["Closed","Completed","Cancelled"]
-    stmt = (
-        select(
-            month_bucket,
-            func.sum(case((col(WorkOrder.status).in_(open_statuses), 1), else_=0)).label("open"),
-            func.sum(case((col(WorkOrder.status).in_(closed_statuses), 1), else_=0)).label("completed"),
-            func.count(WorkOrder.id).label("total_count")  # Optional: overall total
-        )
-        .where(
-            WorkOrder.organization_id == current_user.organization_id,
-            WorkOrder.created_at >= from_date,
-            WorkOrder.created_at <= to_date,
-        )
-        .group_by(month_bucket)
-        .order_by(month_bucket.asc())
-    )
+    stmt = select(
+        month_bucket,
+        func.sum(case((col(WorkOrder.status).in_(open_statuses), 1), else_=0)).label("open"),
+        func.sum(case((col(WorkOrder.status).in_(closed_statuses), 1), else_=0)).label("completed"),
+        func.count(WorkOrder.id).label("total_count")  # Optional: overall total
+    ).where(
+        WorkOrder.organization_id == current_user.organization_id,
+        WorkOrder.created_at >= from_date,
+        WorkOrder.created_at <= to_date,
+    ).group_by(month_bucket).order_by(month_bucket.asc())
     results = db.exec(stmt).all()
+    print("results XXXXXXXXXX",results)
     return results
 
 @router.get("/operation-highlights")
