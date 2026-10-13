@@ -10,6 +10,8 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError
 import math
+from pathlib import Path as FilePath
+from uuid import uuid4
 from dateutil import parser
 from dateutil.parser import ParserError
 from dateutil.relativedelta import relativedelta
@@ -61,6 +63,57 @@ def validate_user_type(user: User, allowed_types: str | list[str] = "system"):
 
     if user.user_type not in allowed_types:
         raise HTTPException(status_code=403, detail="Not allowed")
+
+BASE_DIR = FilePath(__file__).resolve().parent.parent
+UPLOAD_DIR = BASE_DIR / "public" / "files"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+MAX_SIZE = 5 * 1024 * 1024  # 5 MB
+
+def get_size_bytes(file) -> int:
+    if file.size is not None:
+        return file.size
+    # Fallback: seek to the end to measure, then rewind
+    file.file.seek(0, 2)   # 2 = os.SEEK_END
+    size = file.file.tell()
+    file.file.seek(0)
+    return size
+
+def format_size(num_bytes: float) -> str:
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if num_bytes < 1024:
+            return f"{num_bytes:.0f} {unit}" if unit == "B" else f"{num_bytes:.2f} {unit}"
+        num_bytes /= 1024
+    return f"{num_bytes:.2f} PB"
+
+def upload_file(file):
+    """
+    Upload file to server
+    """
+    ext = FilePath(file.filename or "").suffix.lower()
+    filename = f"{uuid4().hex}{ext}"
+    dest = UPLOAD_DIR / filename
+    size = 0
+    try:
+        with dest.open("wb") as out:
+            while chunk := file.file.read(1024 * 1024):  # 1 MB chunks
+                size += len(chunk)
+                if size > MAX_SIZE:
+                    raise HTTPException(status_code=413, detail="File too large")
+                out.write(chunk)
+    except HTTPException:
+        dest.unlink(missing_ok=True)  # remove the partial file
+        raise
+    finally:
+        file.file.close()
+
+    file_size = format_size(get_size_bytes(file))
+    return {
+        "filename": filename, 
+        "file_type": file.content_type, 
+        "file_size": file_size, 
+        "url": f"/public/files/{filename}"
+    }
 
 
 DATE_FORMAT = "%Y-%m-%d"

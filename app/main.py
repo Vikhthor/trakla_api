@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Query, Path, Depends, HTTPException, status
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, AfterValidator, Field
+from pathlib import Path as FilePath
 from enum import Enum
 from typing import Annotated, Literal
 import random
@@ -11,12 +13,15 @@ from .routers import contacts, asset_types, analytics, vendors, technicians, rol
 
 from .db import create_db_and_tables
 
+BASE_DIR = FilePath(__file__).resolve().parent.parent
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
     yield
 
 app = FastAPI(root_path="/api", lifespan=lifespan)
+app.mount("/file", StaticFiles(directory=BASE_DIR / "public"), name="file")
 
 # @app.on_event("startup")
 # def on_startup():

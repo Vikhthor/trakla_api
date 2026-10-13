@@ -22,3 +22,4 @@ from .vendor import Vendor
 from .workflow_state import WorkflowState
 from .workflow_transition import WorkflowTransition
 from .workflow import Workflow
+from .file import File

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, Path, Depends, HTTPException, status, APIRouter, Header
+from fastapi import FastAPI, Query, Path, Depends, HTTPException, status, APIRouter, Header, File, UploadFile
 from pydantic import BaseModel, AfterValidator, Field
 from enum import Enum
 from typing import Annotated, Literal
@@ -7,12 +7,15 @@ from math import asin, cos, radians, sin, sqrt
 from geopy.distance import geodesic
 from datetime import datetime
 from uuid import UUID
+import json
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import WorkOrder, WorkOrderStatus, WorkOrderCategory, WorkOrderPriority, \
-    WorkOrderAssigneeType, WorkOrderCompletionStatus, Currency, User, OrderItem, AssetType
-from ..utils import FilterParams, get_current_user
+    WorkOrderAssigneeType, WorkOrderCompletionStatus, Currency, User, OrderItem, AssetType, \
+    File as FileUpload
+from ..utils import FilterParams, get_current_user, upload_file
 
 EARTH_RADIUS_M = 6_371_000  # mean Earth radius in meters
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 class WorkOrderFilterParams(FilterParams):
     organization_id: UUID
@@ -140,7 +143,7 @@ async def get_work_orders(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_work_order(
-    work_order: WorkOrderModel, 
+    work_order: WorkOrderModel,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ) -> WorkOrder:
@@ -213,8 +216,8 @@ async def create_work_order(
 
 @router.put("/{order_id}", status_code=status.HTTP_200_OK)
 async def update_work_order(
-    order_id: Annotated[int, Path(title="The ID of the work order to update")],
-    service_request: WorkOrderUpdateModel, 
+    order_id: Annotated[UUID, Path(title="The ID of the work order to update")],
+    work_order: WorkOrderUpdateModel, 
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ) -> WorkOrder:
@@ -224,7 +227,7 @@ async def update_work_order(
     current_order = db.get(WorkOrder, order_id)
     if not current_order:
         raise HTTPException(status_code=404, detail="Work order not found")
-    req_dict = service_request.model_dump(exclude_unset=True)
+    req_dict = work_order.model_dump(exclude_unset=True)
     for k, v in req_dict.items():
         if k == "status":
             if v == "Scheduled" and current_order.status != "Scheduled":
@@ -267,6 +270,58 @@ async def update_work_order(
         if current_order.scheduled_date:
             current_order.status = "Scheduled"
 
+    current_order.updated_at = str(datetime.now())
+    current_order.modifier_id = current_user.id
+    db.add(current_order)
+    db.commit()
+    db.refresh(current_order)
+    return current_order
+
+@router.put("/upload-proof/{order_id}", status_code=status.HTTP_200_OK)
+async def upload_proof_of_work(
+    order_id: Annotated[UUID, Path(title="The ID of the work order to update")],
+    proof_of_work: list[UploadFile],
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+):
+    """
+    Upload proof of work
+    """
+    pow_files = []
+    for file in proof_of_work:
+        if file.content_type not in ALLOWED_TYPES:
+            raise HTTPException(status_code=415, detail="Unsupported file type")
+        file_data = upload_file(file)
+        pow_files.append(file_data)
+
+    current_order = db.get(WorkOrder, order_id)
+    if not current_order:
+        raise HTTPException(status_code=404, detail="Work order not found")
+
+    current_files = current_order.proof_of_work
+    if isinstance(current_files, str):
+        try:
+            current_files = json.loads(current_files)
+        except json.JSONDecodeError:
+            pass
+    elif not current_files:
+        current_files = []
+
+    for file in pow_files:
+        file_upload = FileUpload(
+            file_name = file.get("filename"),
+            file_type = file.get("file_type"),
+            file_size = file.get("file_size"),
+            file_url = file.get("url"),
+            record_type = "Work Order",
+            record_id = current_order.id,
+            record_field = "proof_of_work",
+            owner_id = current_user.id
+        )
+        db.add(file_upload)
+        current_files.append(file.get("url"))
+
+    current_order.proof_of_work = json.dumps(current_files)
     current_order.updated_at = str(datetime.now())
     current_order.modifier_id = current_user.id
     db.add(current_order)

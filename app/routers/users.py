@@ -1,16 +1,19 @@
-from fastapi import FastAPI, Query, Path, Depends, HTTPException, status, APIRouter, Header, Form, Body
+from fastapi import FastAPI, Query, Path, Depends, HTTPException, status, APIRouter, Header, Form, Body, File, UploadFile
 from pydantic import BaseModel, AfterValidator, Field
 from enum import Enum
 from typing import Annotated, Literal
 from fastapi.security import OAuth2PasswordRequestForm
 from pwdlib import PasswordHash
+import json
 import jwt
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import secrets, math, random
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import User, Organization, UserRole, Department
-from ..utils import FilterParams, get_current_user, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from ..models import User, Organization, UserRole, Department, File as FileUpload
+from ..utils import FilterParams, get_current_user, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, upload_file
+
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 class UserFilterParams(FilterParams):
     organization_id: UUID
@@ -371,6 +374,45 @@ async def update_user(
     full_name = f"{current_user.first_name} {current_user.last_name}"
     current_user.full_name = full_name
     current_user.updated_at = str(datetime.now())
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+@router.put("/upload-image/{user_id}", status_code=status.HTTP_200_OK)
+async def upload_profile_image(
+    user_id: Annotated[UUID, Path(title="The ID of the user to update")],
+    image: Annotated[UploadFile, File(description="User profile image")],
+    session_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+):
+    """
+    Upload profile image
+    """
+    if image.content_type not in ALLOWED_TYPES:
+        raise HTTPException(status_code=415, detail="Unsupported file type")
+    file_data = upload_file(image)
+    image_url = file_data.get('url')
+
+    current_user = db.get(User, user_id)
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    file_upload = FileUpload(
+        file_name = file_data.get("filename"),
+        file_type = file_data.get("file_type"),
+        file_size = file_data.get("file_size"),
+        file_url = file_data.get("url"),
+        record_type = "User",
+        record_id = current_user.id,
+        record_field = "image",
+        owner_id = session_user.id
+    )
+    db.add(file_upload)
+    
+    current_user.image = image_url
+    current_user.updated_at = str(datetime.now())
+    current_user.modifier_id = session_user.id
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
