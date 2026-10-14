@@ -6,8 +6,8 @@ import random
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import Department
-from ..utils import FilterParams
+from ..models import Department, User
+from ..utils import FilterParams, get_current_user
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -41,12 +41,16 @@ router = APIRouter(
 @router.get("/{department_id}")
 async def get_department(
     department_id: Annotated[UUID, Path(title="The ID of the department to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single department
     """
-    department = db.get(Department, department_id)
+    department = db.exec(select(Department).where(
+        Department.id == department_id,
+        Department.organization_id == current_user.organization.id
+    )).first()
     if not department:
         raise HTTPException(status_code=404, detail="Customer group not found")
     return department
@@ -54,6 +58,7 @@ async def get_department(
 @router.get("/")
 async def get_departments(
     filter_query: Annotated[DepartmentFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -63,7 +68,9 @@ async def get_departments(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(Department).offset(offset).limit(limit)
+    statement = select(Department).where(
+        Department.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     # statement = select(Hero).where(Hero.name == "Spider-Boy")
     departments = db.exec(statement).all()
     return departments

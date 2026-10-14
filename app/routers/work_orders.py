@@ -8,7 +8,7 @@ from geopy.distance import geodesic
 from datetime import datetime
 from uuid import UUID
 import json
-from ..db import engine, Session, get_db, select, col, or_
+from ..db import engine, Session, get_db, select, col, or_, Db
 from ..models import WorkOrder, WorkOrderStatus, WorkOrderCategory, WorkOrderPriority, \
     WorkOrderAssigneeType, WorkOrderCompletionStatus, Currency, User, OrderItem, AssetType, \
     File as FileUpload
@@ -19,6 +19,7 @@ ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 class WorkOrderFilterParams(FilterParams):
     organization_id: UUID
+    completion_status: str | None = None
 
 class OrderItems(BaseModel):
     item_name: str
@@ -101,12 +102,16 @@ def distance_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float
 @router.get("/{order_id}")
 async def get_work_order(
     order_id: Annotated[UUID, Path(title="The ID of the work order to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single work order
     """
-    order = db.get(WorkOrder, order_id)
+    order = db.exec(select(WorkOrder).where(
+        WorkOrder.id == order_id,
+        WorkOrder.organization_id == current_user.organization.id
+    )).first()
     if not order:
         raise HTTPException(status_code=404, detail="Work order not found")
     resp_data = {
@@ -121,6 +126,7 @@ async def get_work_order(
 @router.get("/")
 async def get_work_orders(
     filter_query: Annotated[WorkOrderFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -130,7 +136,15 @@ async def get_work_orders(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(WorkOrder).offset(offset).limit(limit)
+
+    filter_conds = {}
+    if filter_query.completion_status:
+        filter_conds["completion_status"] = filter_query.completion_status
+    select_filters = Db.parse_filters(WorkOrder, filter_conds)
+    statement = select(WorkOrder).where(
+        *select_filters,
+        WorkOrder.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     orders = db.exec(statement).all()
     resp_data = [{
         **order.model_dump(),

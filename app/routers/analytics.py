@@ -242,7 +242,6 @@ async def get_status_timeline(
         WorkOrder.created_at <= to_date,
     ).group_by(month_bucket).order_by(month_bucket.asc())
     results = db.exec(stmt).all()
-    print("results XXXXXXXXXX",results)
     return results
 
 @router.get("/operation-highlights")

@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     db_user: str
     db_password: str
     allow_cors: str
+    smtp_host: str | None = None
+    smtp_port: str | None = None
+    smtp_user: str | None = None
+    smtp_password: str | None = None
 
 @lru_cache
 def get_settings():

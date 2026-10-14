@@ -46,9 +46,10 @@ async def get_contact(
     """
        Get single contact
     """
-    contact = db.get(Contact, contact_id).where(
+    contact = db.exec(select(Contact).where(
+        Contact.id == contact_id,
         Contact.organization_id == current_user.organization.id
-    )
+    )).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
     return contact

@@ -4,19 +4,29 @@ import traceback
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, Field
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TYPE_CHECKING, Self, TypeVar, overload, override, Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError
 import math
+import orjson
+import json
+import re
 from pathlib import Path as FilePath
 from uuid import uuid4
 from dateutil import parser
 from dateutil.parser import ParserError
 from dateutil.relativedelta import relativedelta
+from decimal import Decimal
+from uuid import UUID
+from decimal import Decimal
 from .db import Session, get_db, select, col, or_
 from .models import User
+from collections.abc import Iterable, Mapping
+from email.utils import formataddr, getaddresses, parseaddr
+import nh3
+from bleach_allowlist import bleach_allowlist
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -115,6 +125,142 @@ def upload_file(file):
         "url": f"/public/files/{filename}"
     }
 
+def get_url(path: str | None = None):
+    url = "https://api.trakla.africa"
+    if path:
+        url += path
+    return url
+
+def get_app_url(path: str | None = None):
+    url = "https://app.trakla.africa"
+    if path:
+        url += path
+    return url
+
+def abs_url(path):
+    """Deconstructs and Reconstructs a URL into an absolute URL or a URL relative from root '/'"""
+    if not path:
+        return
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    if path.startswith("tel:"):
+        return path
+    if path.startswith("data:"):
+        return path
+    if not path.startswith("/"):
+        path = "/" + path
+    return path
+
+def parse_json(val: Any):
+    """
+    Parses json if string else return
+    """
+    if isinstance(val, str):
+        val = orjson.loads(val) # pylint: disable=no-member
+    if isinstance(val, dict):
+        val = _dict(val)
+    return val
+
+def safe_encode(param, encoding="utf-8"):
+    try:
+        param = param.encode(encoding)
+    except Exception:
+        pass
+    return param
+
+URLS_NOT_HTTP_TAG_PATTERN = re.compile(
+	r'(href|src){1}([\s]*=[\s]*[\'"]?)((?!http)[^\'" >]+)([\'"]?)'
+)  # href=/assets/...
+URL_NOTATION_PATTERN = re.compile(
+	r'(:[\s]?url)(\([\'"]?)((?!http)[^\'" >]+)([\'"]?\))'
+)  # background-image: url('/assets/...')
+
+def scrub_urls(html: str) -> str:
+    """Expand relative urls in the given `html`.
+
+    e.g. If HTML is '<a href="/files/abc.jpeg">View Image</a>' and site URL is 'https://frappe.io',
+            returns '<a href="https://frappe.io/files/abc.jpeg">View Image</a>'.
+    """
+    return expand_relative_urls(html)
+
+def expand_relative_urls(html: str) -> str:
+    """Expand relative urls in the given `html`.
+
+    e.g. If HTML is '<a href="/files/abc.jpeg">View Image</a>' and site URL is 'https://frappe.io',
+            returns '<a href="https://frappe.io/files/abc.jpeg">View Image</a>'.
+    """
+    # expand relative urls
+    url = get_url()
+    if url.endswith("/"):
+        url = url[:-1]
+
+    def _expand_relative_urls(match):
+        to_expand = list(match.groups())
+
+        if not to_expand[2].startswith(("mailto", "data:", "tel:")):
+            if not to_expand[2].startswith("/"):
+                to_expand[2] = "/" + to_expand[2]
+            to_expand.insert(2, url)
+
+        if "url" in to_expand[0] and to_expand[1].startswith("(") and to_expand[-1].endswith(")"):
+            # background-image: url('/assets/...') - workaround for wkhtmltopdf print-media-type
+            to_expand.append(" !important")
+
+        return "".join(to_expand)
+
+    html = URLS_NOT_HTTP_TAG_PATTERN.sub(_expand_relative_urls, html)
+    html = URL_NOTATION_PATTERN.sub(_expand_relative_urls, html)
+    return html
+
+EMAIL_NAME_PATTERN = re.compile(r"[^A-Za-z0-9\u00C0-\u024F\/\_\' ]+")
+EMAIL_STRING_PATTERN = re.compile(r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)")
+NON_MD_HTML_PATTERN = re.compile(r"<p[\s]*>|<br[\s]*>")
+HTML_TAGS_PATTERN = re.compile(r"\<[^>]*\>")
+INCLUDE_DIRECTIVE_PATTERN = re.compile("""({% include ['"]([^'"]*)['"] %})""")
+PHONE_NUMBER_PATTERN = re.compile(r"([0-9\ \+\_\-\,\.\*\#\(\)]){1,20}$")
+PERSON_NAME_PATTERN = re.compile(r"^[\w][\w\'\-]*( \w[\w\'\-]*)*$")
+WHITESPACE_PATTERN = re.compile(r"[\t\n\r]")
+MULTI_EMAIL_STRING_PATTERN = re.compile(r'[,\n](?=(?:[^"]|"[^"]*")*$)')
+EMAIL_MATCH_PATTERN = re.compile(
+	r"[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?",
+	re.IGNORECASE,
+)
+
+def strip(val: str, chars: str | None = None) -> str:
+    """Strip the given characters from the given string.
+
+    e.g. strip(',hello,bye,', ',') -> 'hello,bye'
+    """
+    # \ufeff is no-width-break, \u200b is no-width-space
+    return (val or "").replace("\ufeff", "").replace("\u200b", "").strip(chars)
+
+def split_emails(txt):
+    email_list = []
+
+    # emails can be separated by comma or newline
+    s = WHITESPACE_PATTERN.sub(" ", cstr(txt))
+    for email in MULTI_EMAIL_STRING_PATTERN.split(s):
+        email = strip(cstr(email))
+        if email:
+            email_list.append(email)
+
+    return email_list
+
+def get_string_between(start: str, string: str, end: str) -> str:
+    if not string:
+        return ""
+
+    out = re.search(f"{start}(.*){end}", string)
+
+    return out.group(1) if out else string
+
+def random_string(length: int) -> str:
+    """generate a random string"""
+    import secrets
+    import string
+
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for i in range(length))
 
 DATE_FORMAT = "%Y-%m-%d"
 TIME_FORMAT = "%H:%M:%S.%f"
@@ -261,6 +407,14 @@ def get_first_day(dt, d_years: int = 0, d_months: int = 0, as_str: bool = False)
         if as_str
         else datetime.date(year, month + 1, 1)
     )
+
+def add_days(date: DateTimeLikeObject, days: NumericType) -> DateTimeLikeObject:
+    """Return a new date after adding the given number of `days` to the given `date`."""
+    return add_to_date(date, days=days)
+
+def nowdate() -> str:
+    """Return current date as `yyyy-mm-dd`."""
+    return now_datetime().strftime(DATE_FORMAT)
 
 def rounded(num, precision=0, rounding_method=None):
     """Round according to method set in system setting, defaults to banker's rounding"""
@@ -429,6 +583,356 @@ def cstr(s, encoding="utf-8") -> str:
     """Convert the given argument to string."""
     return as_unicode(s, encoding)
 
+DateOrTimeTypes = datetime.date | datetime.datetime | datetime.time
+
+def format_timedelta(o: datetime.timedelta | str) -> str:
+    # MariaDB allows a wide range - https://mariadb.com/kb/en/time/
+    # but Frappe doesn't - I think via babel : only allows 0..23 range for hour
+    if isinstance(o, datetime.timedelta):
+        total_seconds = o.total_seconds()
+    else:
+        total_seconds = cint(o)
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    rounded_seconds = round(seconds, 6)
+    int_seconds = int(seconds)
+
+    if rounded_seconds == int_seconds:
+        seconds = int_seconds
+    else:
+        seconds = rounded_seconds
+
+    return f"{int(hours):01}:{int(minutes):02}:{seconds:02}"
+
+def json_handler(obj):
+    """serialize non-serializable data for json"""
+
+    timedelta = datetime.timedelta
+
+    if isinstance(obj, DateOrTimeTypes):
+        return str(obj)
+
+    elif isinstance(obj, timedelta):
+        return format_timedelta(obj)
+
+    elif hasattr(obj, "__json__"):
+        return obj.__json__()
+
+    elif isinstance(obj, Iterable):
+        return list(obj)
+
+    elif isinstance(obj, Decimal):
+        return float(obj)
+
+    elif isinstance(obj, re.Match):
+        return obj.string
+
+    elif type(obj) is type or isinstance(obj, Exception):
+        return repr(obj)
+
+    elif callable(obj):
+        return repr(obj)
+
+    elif isinstance(obj, FilePath):
+        return str(obj)
+
+    # orjson does this already
+    # but json_handler needs to be compatible with built-in json module also
+    elif isinstance(obj, UUID):
+        return str(obj)
+
+    else:
+        raise TypeError(f"""Object of type {type(obj)} with value of {obj!r} is not JSON serializable""")
+
+def as_json(obj: dict | list, indent=1, separators=None, ensure_ascii=True) -> str:
+    """Return the JSON string representation of the given `obj`."""
+
+    if separators is None:
+        separators = (",", ": ")
+
+    try:
+        return json.dumps(
+            obj,
+            indent=indent,
+            sort_keys=True,
+            default=json_handler,
+            separators=separators,
+            ensure_ascii=ensure_ascii,
+        )
+    except TypeError:
+        # this would break in case the keys are not all os "str" type - as defined in the JSON
+        # adding this to ensure keys are sorted (expected behaviour)
+        sorted_obj = dict(sorted(obj.items(), key=lambda kv: str(kv[0])))
+        return json.dumps(
+            sorted_obj,
+            indent=indent,
+            default=json_handler,
+            separators=separators,
+            ensure_ascii=ensure_ascii,
+        )
+
+    
+
+def html_to_plain_text(html: str) -> str:
+    """Return the given `html` as plain text."""
+
+    if not html:
+        return ""
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    for element in soup(["script", "style"]):
+        element.decompose()
+
+    # Introduce explicit newlines for block-level elements while keeping inline content on the same line.
+    for br in soup.find_all("br"):
+        br.replace_with("\n")
+
+    for block in soup.find_all(["p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6"]):
+        block.append("\n")
+
+    # Use a space separator between text nodes so inline tags don't break lines
+    text = soup.get_text(separator=" ")
+
+    lines = [line.strip() for line in text.splitlines()]
+    cleaned = []
+    previous_blank = False
+
+    for line in lines:
+        if line:
+            cleaned.append(line)
+            previous_blank = False
+        else:
+            if not previous_blank:
+                cleaned.append("")
+            previous_blank = True
+
+    return "\n".join(cleaned).strip()
+
+class InvalidEmailAddressError(Exception):
+    pass
+
+def escape_html(text: str) -> str:
+    """Return the given text with HTML special characters escaped.
+
+    e.g. '<h1>Hello</h1>' -> '&lt;h1&gt;Hello&lt;/h1&gt;'
+    """
+    if not isinstance(text, str):
+        return text
+
+    html_escape_table = {
+        "&": "&amp;",
+        '"': "&quot;",
+        "'": "&apos;",
+        ">": "&gt;",
+        "<": "&lt;",
+    }
+
+    return "".join(html_escape_table.get(c, c) for c in text)
+
+def validate_email_address(email_str, throw=False):
+    """Validates the email string"""
+
+    email_str = (email_str or "").strip()
+    out = []
+
+    # split_emails collapses \n/\r to spaces *before* splitting, so newlines
+    # would no longer act as separators. Convert them to commas up front.
+    email_str = email_str.replace("\n", ",").replace("\r", ",")
+
+    # Fast path: parse the whole string in one shot. Strict mode either gives
+    # us all entries cleanly or bails to [('', '')] on malformed input.
+    addresses = getaddresses([email_str])
+
+    # Slow path: if nothing usable came back, re-parse each piece in isolation
+    # so one malformed entry can't reject its valid neighbours. split_emails
+    # is quote-aware, so `"Last, First" <addr>` survives the split intact.
+    if not any(addr for _, addr in addresses):
+        addresses = []
+        for piece in split_emails(email_str):
+            addresses.extend(getaddresses([piece]))
+
+    for name, addr in addresses:
+        if not addr:
+            if throw:
+                raise InvalidEmailAddressError(f"{escape_html(name or email_str)} is not a valid Email Address")
+            continue
+
+        # Skip undisclosed recipients
+        if "undisclosed-recipient" in addr:
+            continue
+
+        if not EMAIL_MATCH_PATTERN.fullmatch(addr):
+            if throw:
+                raise InvalidEmailAddressError(f"{escape_html(addr)} is not a valid Email Address")
+            continue
+
+        out.append(addr)
+
+    return ", ".join(out)
+
+def check_format(email_id):
+    """
+    Check if email_id is valid. valid email:text@example.com
+    String check ensures that email_id contains both '.' and
+    '@' and index of '@' is less than '.'
+    """
+    is_valid = False
+    try:
+        pos = email_id.rindex("@")
+        is_valid = pos > 0 and (email_id.rindex(".") > pos) and (len(email_id) - pos > 4)
+    except Exception:
+        # print(e)
+        pass
+    return is_valid
+
+def get_name_from_email_string(email_string, email_id, name):
+    name = email_string.replace(email_id, "")
+    name = EMAIL_NAME_PATTERN.sub("", name).strip()
+    if not name:
+        name = email_id
+    return name
+
+def parse_addr(email_string):
+    """
+    Return email_id and user_name based on email string
+    Raise error if email string is not valid
+    """
+    name, email = parseaddr(email_string)
+    if check_format(email):
+        name = get_name_from_email_string(email_string, email, name)
+        return (name, email)
+    else:
+        email_list = EMAIL_STRING_PATTERN.findall(email_string)
+        if len(email_list) > 0 and check_format(email_list[0]):
+            # take only first email address
+            email = email_list[0]
+            name = get_name_from_email_string(email_string, email, name)
+            return (name, email)
+    return (None, email)
+
+def sanitize_email(emails):
+    sanitized = []
+    for e in split_emails(emails):
+        if not validate_email_address(e):
+            continue
+
+        full_name, email_id = parse_addr(e)
+        sanitized.append(formataddr((full_name, email_id)))
+
+    return ", ".join(sanitized)
+
+class UnicodeWithAttrs(str):
+    def __init__(self, text):
+        self.toc_html = text.toc_html
+        self.metadata = text.metadata
+
+def md_to_html(markdown_text: str) -> "UnicodeWithAttrs" | None:
+    """Convert the given markdown text to HTML and returns it."""
+    from markdown2 import MarkdownError
+    from markdown2 import markdown as _markdown
+
+    extras = {
+        "fenced-code-blocks": None,
+        "tables": None,
+        "header-ids": None,
+        "toc": None,
+        "highlightjs-lang": None,
+        "html-classes": {"table": "table table-bordered", "img": "screenshot"},
+    }
+
+    try:
+        return UnicodeWithAttrs(_markdown(markdown_text or "", extras=extras))
+    except MarkdownError:
+        pass
+
+HTML_TAG_PATTERN = re.compile("<[^>]+>")
+
+def is_html(text: str) -> bool:
+    """Return True if the given `text` contains any HTML tags."""
+    if not isinstance(text, str):
+        return False
+    return HTML_TAG_PATTERN.search(text)
+
+def sanitize_html(html, linkify=False, always_sanitize=False, disallowed_tags=None):
+    """
+    Sanitize HTML tags, attributes and style to prevent XSS attacks
+    Based on nh3 clean, bleach whitelist and html5lib's Sanitizer defaults
+
+    Content without any HTML tags is returned unchanged; everything else is sanitized.
+    """
+    # pylint: disable=no-member
+    from bs4 import BeautifulSoup
+
+    if not isinstance(html, str):
+        return html
+
+    if not always_sanitize:
+        if not bool(BeautifulSoup(html, "html.parser").find()):
+            return html
+
+    tags = (
+        acceptable_elements.union(svg_elements)
+        .union(mathml_elements)
+        .union(["html", "head", "meta", "link", "body", "o:p"])
+    )
+
+    # Allow caller to explicitly disallow some tags
+    if disallowed_tags:
+        if disallowed_tags == "*":
+            tags = set()
+        else:
+            tags.difference_update(disallowed_tags)
+
+    attributes = {"*": acceptable_attributes, "svg": svg_attributes}
+
+    # returns sanitized HTML with unsafe tags and attributes removed
+    escaped_html = nh3.clean(
+        html,
+        tags=tags,
+        attributes=attributes,
+        generic_attribute_prefixes={"data-"},
+        strip_comments=False,
+        filter_style_properties=set(bleach_allowlist.all_styles),
+        url_schemes=nh3.ALLOWED_URL_SCHEMES.union({"cid"}),
+    )
+
+    return escaped_html
+
+def markdown(text, sanitize=True, linkify=True):
+    html = text if is_html(text) else md_to_html(text)
+
+    if sanitize:
+        html = html.replace("<!-- markdown -->", "")
+        html = sanitize_html(html, linkify=linkify)
+
+    return html
+
+def html2text(html: str, strip_links=False, wrap=True) -> str:
+    """Return the given `html` as markdown text."""
+    from markdownify import markdownify as md
+
+    strip_link = ["a"] if strip_links else None
+    return md(html, heading_style="ATX", strip=strip_link, wrap=wrap)
+
+def to_markdown(html: str) -> str:
+    """Convert the given HTML to markdown and returns it."""
+    # pylint: disable=no-member
+    from html.parser import HTMLParser
+
+    try:
+        return html2text(html or "")
+    except HTMLParser.HTMLParseError:
+        pass
+
+def unescape_html(value):
+    from html import unescape
+
+    return unescape(value)
+
+
 @lru_cache(maxsize=1)
 def _get_traceback_sanitizer():
     from traceback_with_variables import Format
@@ -468,3 +972,571 @@ def get_traceback(with_context: bool = False) -> str:
         trace_list = traceback.format_exception(exc_type, exc_value, exc_tb)
         tb = "".join(cstr(t) for t in trace_list)
     return tb
+
+_KT = TypeVar("_KT")
+_VT = TypeVar("_VT")
+
+
+class _dict(dict[_KT, _VT]):
+    """dict like object that exposes keys as attributes"""
+
+    __slots__ = ()
+
+    # NOTE(perf): Do NOT use super() here, it's an unnecessary function call!
+    # Refer: https://github.com/frappe/frappe/pull/16449
+
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+    __setstate__ = dict.update
+
+    @override
+    def __getstate__(self) -> Self:
+        return self
+
+    @overload  # type: ignore[override]
+    def update(self, m: Mapping[_KT, _VT], /, **kwargs: _VT) -> Self: ...
+
+    @overload
+    def update(self, m: Iterable[tuple[_KT, _VT]], /, **kwargs: _VT) -> Self: ...
+
+    @overload
+    def update(self, /, **kwargs: _VT) -> Self: ...
+
+    @override
+    def update(
+        self, m: Mapping[_KT, _VT] | Iterable[tuple[_KT, _VT]] | None = None, /, **kwargs: _VT
+    ) -> Self:
+        """update and return self -- the missing dict feature in python"""
+        if m:
+            super().update(m, **kwargs)
+        else:
+            super().update(**kwargs)
+        return self
+
+    @override
+    def copy(self) -> "_dict[_KT, _VT]":
+        return _dict(self)
+
+acceptable_elements = {
+	"a",
+	"abbr",
+	"acronym",
+	"address",
+	"area",
+	"article",
+	"aside",
+	"audio",
+	"b",
+	"big",
+	"blockquote",
+	"br",
+	"button",
+	"canvas",
+	"caption",
+	"center",
+	"cite",
+	"code",
+	"col",
+	"colgroup",
+	"command",
+	"datagrid",
+	"datalist",
+	"dd",
+	"del",
+	"details",
+	"dfn",
+	"dialog",
+	"dir",
+	"div",
+	"dl",
+	"dt",
+	"em",
+	"event-source",
+	"fieldset",
+	"figcaption",
+	"figure",
+	"footer",
+	"font",
+	"form",
+	"header",
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"hr",
+	"i",
+	"img",
+	"input",
+	"ins",
+	"keygen",
+	"kbd",
+	"label",
+	"legend",
+	"li",
+	"m",
+	"map",
+	"mark",
+	"menu",
+	"meter",
+	"multicol",
+	"nav",
+	"nextid",
+	"ol",
+	"output",
+	"optgroup",
+	"option",
+	"p",
+	"pre",
+	"progress",
+	"q",
+	"s",
+	"samp",
+	"section",
+	"select",
+	"small",
+	"sound",
+	"source",
+	"spacer",
+	"span",
+	"strike",
+	"strong",
+	"sub",
+	"summary",
+	"sup",
+	"table",
+	"tbody",
+	"td",
+	"textarea",
+	"time",
+	"tfoot",
+	"th",
+	"thead",
+	"tr",
+	"tt",
+	"u",
+	"ul",
+	"var",
+	"video",
+}
+
+mathml_elements = {
+	"maction",
+	"math",
+	"merror",
+	"mfrac",
+	"mi",
+	"mmultiscripts",
+	"mn",
+	"mo",
+	"mover",
+	"mpadded",
+	"mphantom",
+	"mprescripts",
+	"mroot",
+	"mrow",
+	"mspace",
+	"msqrt",
+	"mstyle",
+	"msub",
+	"msubsup",
+	"msup",
+	"mtable",
+	"mtd",
+	"mtext",
+	"mtr",
+	"munder",
+	"munderover",
+	"none",
+}
+
+svg_elements = {
+	"a",
+	"animate",
+	"animateColor",
+	"animateMotion",
+	"animateTransform",
+	"clipPath",
+	"circle",
+	"defs",
+	"desc",
+	"ellipse",
+	"font-face",
+	"font-face-name",
+	"font-face-src",
+	"g",
+	"glyph",
+	"hkern",
+	"linearGradient",
+	"line",
+	"marker",
+	"metadata",
+	"missing-glyph",
+	"mpath",
+	"path",
+	"polygon",
+	"polyline",
+	"radialGradient",
+	"rect",
+	"set",
+	"stop",
+	"svg",
+	"switch",
+	"text",
+	"title",
+	"tspan",
+	"use",
+}
+
+acceptable_attributes = {
+	"abbr",
+	"accept",
+	"accept-charset",
+	"accesskey",
+	"action",
+	"align",
+	"alt",
+	"autocomplete",
+	"autofocus",
+	"axis",
+	"background",
+	"balance",
+	"bgcolor",
+	"bgproperties",
+	"border",
+	"bordercolor",
+	"bordercolordark",
+	"bordercolorlight",
+	"bottompadding",
+	"cellpadding",
+	"cellspacing",
+	"ch",
+	"challenge",
+	"char",
+	"charoff",
+	"choff",
+	"charset",
+	"checked",
+	"cite",
+	"class",
+	"clear",
+	"color",
+	"cols",
+	"colspan",
+	"compact",
+	"content",
+	"contenteditable",
+	"controls",
+	"coords",
+	"data",
+	"datafld",
+	"datapagesize",
+	"datasrc",
+	"datetime",
+	"default",
+	"delay",
+	"dir",
+	"disabled",
+	"draggable",
+	"dynsrc",
+	"enctype",
+	"end",
+	"face",
+	"for",
+	"form",
+	"frame",
+	"galleryimg",
+	"gutter",
+	"headers",
+	"height",
+	"hidefocus",
+	"hidden",
+	"high",
+	"href",
+	"hreflang",
+	"hspace",
+	"icon",
+	"id",
+	"inputmode",
+	"ismap",
+	"keytype",
+	"label",
+	"leftspacing",
+	"lang",
+	"list",
+	"longdesc",
+	"loop",
+	"loopcount",
+	"loopend",
+	"loopstart",
+	"low",
+	"lowsrc",
+	"max",
+	"maxlength",
+	"media",
+	"method",
+	"min",
+	"multiple",
+	"name",
+	"nohref",
+	"noshade",
+	"nowrap",
+	"open",
+	"optimum",
+	"pattern",
+	"ping",
+	"point-size",
+	"poster",
+	"pqg",
+	"preload",
+	"prompt",
+	"radiogroup",
+	"readonly",
+	"repeat-max",
+	"repeat-min",
+	"replace",
+	"required",
+	"rev",
+	"rightspacing",
+	"rows",
+	"rowspan",
+	"rules",
+	"scope",
+	"selected",
+	"shape",
+	"size",
+	"span",
+	"src",
+	"start",
+	"step",
+	"style",
+	"summary",
+	"suppress",
+	"tabindex",
+	"target",
+	"template",
+	"title",
+	"toppadding",
+	"type",
+	"unselectable",
+	"usemap",
+	"urn",
+	"valign",
+	"value",
+	"variable",
+	"volume",
+	"vspace",
+	"vrml",
+	"width",
+	"wrap",
+	"xml:lang",
+	"data-row",
+	"data-list",
+	"data-language",
+	"data-value",
+	"role",
+	"frameborder",
+	"allowfullscreen",
+	"spellcheck",
+	"data-mode",
+	"data-gramm",
+	"data-placeholder",
+	"data-comment",
+	"data-id",
+	"data-denotation-char",
+	"itemprop",
+	"itemscope",
+	"itemtype",
+	"itemid",
+	"itemref",
+	"data-is-group",
+}
+
+mathml_attributes = {
+	"actiontype",
+	"align",
+	"columnalign",
+	"columnlines",
+	"columnspacing",
+	"columnspan",
+	"depth",
+	"display",
+	"displaystyle",
+	"equalcolumns",
+	"equalrows",
+	"fence",
+	"fontstyle",
+	"fontweight",
+	"frame",
+	"height",
+	"linethickness",
+	"lspace",
+	"mathbackground",
+	"mathcolor",
+	"mathvariant",
+	"maxsize",
+	"minsize",
+	"other",
+	"rowalign",
+	"rowlines",
+	"rowspacing",
+	"rowspan",
+	"rspace",
+	"scriptlevel",
+	"selection",
+	"separator",
+	"stretchy",
+	"width",
+	"xlink:href",
+	"xlink:show",
+	"xlink:type",
+	"xmlns",
+	"xmlns:xlink",
+}
+
+svg_attributes = {
+	"accent-height",
+	"accumulate",
+	"additive",
+	"alphabetic",
+	"arabic-form",
+	"ascent",
+	"attributeName",
+	"attributeType",
+	"baseProfile",
+	"bbox",
+	"begin",
+	"by",
+	"calcMode",
+	"cap-height",
+	"class",
+	"clip-path",
+	"color",
+	"color-rendering",
+	"content",
+	"colwidth",
+	"cx",
+	"cy",
+	"d",
+	"dx",
+	"dy",
+	"descent",
+	"display",
+	"dur",
+	"end",
+	"fill",
+	"fill-opacity",
+	"fill-rule",
+	"font-family",
+	"font-size",
+	"font-stretch",
+	"font-style",
+	"font-variant",
+	"font-weight",
+	"from",
+	"fx",
+	"fy",
+	"g1",
+	"g2",
+	"glyph-name",
+	"gradientUnits",
+	"hanging",
+	"height",
+	"horiz-adv-x",
+	"horiz-origin-x",
+	"id",
+	"ideographic",
+	"k",
+	"keyPoints",
+	"keySplines",
+	"keyTimes",
+	"lang",
+	"marker-end",
+	"marker-mid",
+	"marker-start",
+	"markerHeight",
+	"markerUnits",
+	"markerWidth",
+	"mathematical",
+	"max",
+	"min",
+	"name",
+	"offset",
+	"opacity",
+	"orient",
+	"origin",
+	"overline-position",
+	"overline-thickness",
+	"panose-1",
+	"path",
+	"pathLength",
+	"points",
+	"preserveAspectRatio",
+	"r",
+	"refX",
+	"refY",
+	"repeatCount",
+	"repeatDur",
+	"requiredExtensions",
+	"requiredFeatures",
+	"restart",
+	"rotate",
+	"rx",
+	"ry",
+	"slope",
+	"stemh",
+	"stemv",
+	"stop-color",
+	"stop-opacity",
+	"strikethrough-position",
+	"strikethrough-thickness",
+	"stroke",
+	"stroke-dasharray",
+	"stroke-dashoffset",
+	"stroke-linecap",
+	"stroke-linejoin",
+	"stroke-miterlimit",
+	"stroke-opacity",
+	"stroke-width",
+	"systemLanguage",
+	"target",
+	"text-anchor",
+	"to",
+	"transform",
+	"type",
+	"u1",
+	"u2",
+	"underline-position",
+	"underline-thickness",
+	"unicode",
+	"unicode-range",
+	"units-per-em",
+	"values",
+	"version",
+	"viewBox",
+	"visibility",
+	"width",
+	"widths",
+	"x",
+	"x-height",
+	"x1",
+	"x2",
+	"xlink:actuate",
+	"xlink:arcrole",
+	"xlink:href",
+	"xlink:role",
+	"xlink:show",
+	"xlink:title",
+	"xlink:type",
+	"xml:base",
+	"xml:lang",
+	"xml:space",
+	"xmlns",
+	"xmlns:xlink",
+	"y",
+	"y1",
+	"y2",
+	"zoomAndPan",
+}

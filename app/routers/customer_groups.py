@@ -6,8 +6,8 @@ import random
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import CustomerGroup
-from ..utils import FilterParams
+from ..models import CustomerGroup, User
+from ..utils import FilterParams, get_current_user
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -41,12 +41,16 @@ router = APIRouter(
 @router.get("/{group_id}")
 async def get_customer_group(
     group_id: Annotated[UUID, Path(title="The ID of the customer group to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single customer group
     """
-    customer_group = db.get(CustomerGroup, group_id)
+    customer_group = db.exec(select(CustomerGroup).where(
+        CustomerGroup.id == group_id,
+        CustomerGroup.organization_id == current_user.organization.id
+    )).first()
     if not customer_group:
         raise HTTPException(status_code=404, detail="Customer group not found")
     return customer_group
@@ -54,6 +58,7 @@ async def get_customer_group(
 @router.get("/")
 async def get_customer_groups(
     filter_query: Annotated[CustomerGroupFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -63,7 +68,9 @@ async def get_customer_groups(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(CustomerGroup).offset(offset).limit(limit)
+    statement = select(CustomerGroup).where(
+        CustomerGroup.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     # statement = select(Hero).where(Hero.name == "Spider-Boy")
     customers = db.exec(statement).all()
     return customers

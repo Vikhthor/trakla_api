@@ -87,7 +87,10 @@ async def get_maintenance_schedule(
     """
        Get single maintenance schedule
     """
-    schedule = db.get(MaintenanceSchedule, schedule_id)
+    schedule = db.exec(select(MaintenanceSchedule).where(
+        MaintenanceSchedule.id == schedule_id,
+        MaintenanceSchedule.organization_id == current_user.organization.id
+    )).first()
     if not schedule:
         raise HTTPException(status_code=404, detail="Maintenance schedule not found")
     resp_data = {
@@ -112,7 +115,9 @@ async def get_maintenance_schedules(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(MaintenanceSchedule).offset(offset).limit(limit)
+    statement = select(MaintenanceSchedule).where(
+        MaintenanceSchedule.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     schedules = db.exec(statement).all()
     resp_data = [{
         **schedule.model_dump(),

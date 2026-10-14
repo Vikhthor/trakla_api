@@ -41,9 +41,10 @@ async def get_vendor(
     """
        Get single vendor
     """
-    vendor = db.get(Vendor, vendor_id).where(
+    vendor = db.exec(select(Vendor).where(
+        Vendor.id == vendor_id,
         Vendor.organization_id == current_user.organization.id
-    )
+    )).first()
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
     resp_data = {

@@ -6,8 +6,8 @@ import random
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import VendorGroup
-from ..utils import FilterParams
+from ..models import VendorGroup, User
+from ..utils import FilterParams, get_current_user
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -41,12 +41,16 @@ router = APIRouter(
 @router.get("/{group_id}")
 async def get_vendor_group(
     group_id: Annotated[UUID, Path(title="The ID of the vendor group to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single vendor group
     """
-    vendor_group = db.get(VendorGroup, group_id)
+    vendor_group = db.exec(select(VendorGroup).where(
+        VendorGroup.id == group_id,
+        VendorGroup.organization_id == current_user.organization.id
+    )).first()
     if not vendor_group:
         raise HTTPException(status_code=404, detail="Vendor group not found")
     return vendor_group
@@ -54,6 +58,7 @@ async def get_vendor_group(
 @router.get("/")
 async def get_vendor_groups(
     filter_query: Annotated[VendorGroupFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -63,7 +68,9 @@ async def get_vendor_groups(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(VendorGroup).offset(offset).limit(limit)
+    statement = select(VendorGroup).where(
+        VendorGroup.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     # statement = select(Hero).where(Hero.name == "Spider-Boy")
     vendor_groups = db.exec(statement).all()
     return vendor_groups

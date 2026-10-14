@@ -6,8 +6,8 @@ import random
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import OrderItem
-from ..utils import FilterParams
+from ..models import OrderItem, User
+from ..utils import FilterParams, get_current_user
 
 class OrderItemFilterParams(FilterParams):
     organization_id: UUID
@@ -32,12 +32,16 @@ router = APIRouter(
 @router.get("/{item_id}")
 async def get_order_item(
     item_id: Annotated[UUID, Path(title="The ID of the item to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single item
     """
-    order_item = db.get(OrderItem, item_id)
+    order_item = db.exec(select(OrderItem).where(
+        OrderItem.id == item_id,
+        OrderItem.organization_id == current_user.organization.id
+    )).first()
     if not order_item:
         raise HTTPException(status_code=404, detail="Order item not found")
     return order_item
@@ -45,6 +49,7 @@ async def get_order_item(
 @router.get("/")
 async def get_order_items(
     filter_query: Annotated[OrderItemFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -54,7 +59,9 @@ async def get_order_items(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(OrderItem).offset(offset).limit(limit)
+    statement = select(OrderItem).where(
+        OrderItem.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     order_items = db.exec(statement).all()
     return order_items
 

@@ -25,6 +25,15 @@ dependencies = [
     "traceback-with-variables>=2.2.1",
     "pymysql>=1.2.3",
     "geopy>=2.5.0",
+    "orjson>=3.13.0",
+    "jinja2>=3.1.6",
+    "bs4>=0.0.2",
+    "markdown2>=2.5.5",
+    "nh3>=0.3.7",
+    "bleach-allowlist>=1.0.3",
+    "premailer>=3.10.0",
+    "markdownify>=1.2.3",
+    "pypdf>=6.20.1",
 ]
 [dependency-groups]
 dev = [

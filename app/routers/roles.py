@@ -49,12 +49,16 @@ router = APIRouter(
 @router.get("/{role_id}")
 async def get_role(
     role_id: Annotated[UUID, Path(title="The ID of the user role to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single user role
     """
-    role = db.get(UserRole, role_id)
+    role = db.exec(select(UserRole).where(
+        UserRole.id == role_id,
+        UserRole.organization_id == current_user.organization.id
+    )).first()
     if not role:
         raise HTTPException(status_code=404, detail="User role not found")
     resp_data = {
@@ -62,11 +66,12 @@ async def get_role(
         "permissions": role.permissions,
         "created_by": role.created_by
     }
-    return role
+    return resp_data
 
 @router.get("/")
 async def get_roles(
     filter_query: Annotated[UserRoleFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -76,7 +81,9 @@ async def get_roles(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(UserRole).offset(offset).limit(limit)
+    statement = select(UserRole).where(
+        UserRole.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     # statement = select(Hero).where(Hero.name == "Spider-Boy")
     roles = db.exec(statement).all()
     resp_data = [{

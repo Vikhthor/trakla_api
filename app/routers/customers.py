@@ -5,8 +5,8 @@ from typing import Annotated, Literal
 import random
 from datetime import datetime
 from uuid import UUID
-from ..db import engine, Session, get_db, select, col, or_
-from ..models import Customer, Contact, User, CustomerGroup
+from ..db import engine, Session, get_db, select, col, or_, func
+from ..models import Customer, Contact, User, CustomerGroup, ServiceRequest
 from ..utils import FilterParams, get_current_user
 
 # from fastapi.security import OAuth2PasswordBearer
@@ -47,12 +47,16 @@ router = APIRouter(
 @router.get("/{customer_id}")
 async def get_customer(
     customer_id: Annotated[UUID, Path(title="The ID of the customer to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single customer
     """
-    customer = db.get(Customer, customer_id)
+    customer = db.exec(select(Customer).where(
+        Customer.id == customer_id,
+        Customer.organization_id == current_user.organization.id
+    )).first()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     resp_data = {
@@ -65,6 +69,7 @@ async def get_customer(
 @router.get("/")
 async def get_customers(
     filter_query: Annotated[CustomerFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -74,14 +79,21 @@ async def get_customers(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(Customer).offset(offset).limit(limit)
+    statement = select(
+        Customer, 
+        func.count(ServiceRequest.id).label("pending_request_count") # pylint: disable=not-callable
+    ).join(ServiceRequest, isouter=True).where(
+        Customer.organization_id == current_user.organization_id,
+        ServiceRequest.status == "Open"
+    ).offset(offset).limit(limit)
     customers = db.exec(statement).all()
     resp_data = [{
         **customer.model_dump(),
+        "pending_request_count": req_count,
         "customer_group": customer.group.group_name,
         "contacts": customer.contacts,
         "created_by": customer.created_by
-    } for customer in customers]
+    } for customer, req_count in customers]
     return resp_data
 
 @router.post("/", status_code=status.HTTP_201_CREATED)

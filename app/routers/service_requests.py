@@ -36,12 +36,16 @@ router = APIRouter(
 @router.get("/{request_id}")
 async def get_service_request(
     request_id: Annotated[UUID, Path(title="The ID of the service request to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single service request
     """
-    service_req = db.get(ServiceRequest, request_id)
+    service_req = db.exec(select(ServiceRequest).where(
+        ServiceRequest.id == request_id,
+        ServiceRequest.organization_id == current_user.organization.id
+    )).first()
     if not service_req:
         raise HTTPException(status_code=404, detail="Service request not found")
     resp_data = {
@@ -54,6 +58,7 @@ async def get_service_request(
 @router.get("/")
 async def get_service_requests(
     filter_query: Annotated[ServiceRequestFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -63,7 +68,9 @@ async def get_service_requests(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(ServiceRequest).offset(offset).limit(limit)
+    statement = select(ServiceRequest).where(
+        ServiceRequest.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     service_reqs = db.exec(statement).all()
     resp_data = [{
         **service_req.model_dump(),

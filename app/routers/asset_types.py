@@ -6,8 +6,8 @@ import random
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import AssetType
-from ..utils import FilterParams
+from ..models import AssetType, User
+from ..utils import FilterParams, get_current_user
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -41,12 +41,16 @@ router = APIRouter(
 @router.get("/{asset_type_id}")
 async def get_asset_type(
     asset_type_id: Annotated[UUID, Path(title="The ID of the asset type to get")],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
        Get single customer group
     """
-    asset_type = db.get(AssetType, asset_type_id)
+    asset_type = db.exec(select(AssetType).where(
+        AssetType.id == asset_type_id,
+        AssetType.organization_id == current_user.organization.id
+    )).first()
     if not asset_type:
         raise HTTPException(status_code=404, detail="Customer group not found")
     return asset_type
@@ -54,6 +58,7 @@ async def get_asset_type(
 @router.get("/")
 async def get_asset_types(
     filter_query: Annotated[AssetTypeFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -63,7 +68,9 @@ async def get_asset_types(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(AssetType).offset(offset).limit(limit)
+    statement = select(AssetType).where(
+        AssetType.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     # statement = select(Hero).where(Hero.name == "Spider-Boy")
     asset_types = db.exec(statement).all()
     return asset_types
