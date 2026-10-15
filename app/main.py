@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(root_path="/api", lifespan=lifespan)
-app.mount("/file", StaticFiles(directory=BASE_DIR / "public"), name="file")
+app.mount("/file", StaticFiles(directory=BASE_DIR / "public" / "files"), name="file")
 
 # @app.on_event("startup")
 # def on_startup():

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light">
+  <title>You're invited to join {{ organization_name }}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#eef1f4; -webkit-text-size-adjust:100%;">
+
+  <!-- Preheader: preview text shown in the inbox list -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:#eef1f4; font-size:1px; line-height:1px;">
+    {{ inviter_name }} invited you to {{ organization_name }}. Set up your account in a minute.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef1f4;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+               style="width:100%; max-width:560px; background-color:#ffffff; border-radius:8px;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:28px 36px; border-bottom:1px solid #e3e7eb; font-family:Georgia, 'Times New Roman', serif; font-size:22px; font-weight:bold; color:#14323f;">
+              {{ app_name }}
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 36px 8px 36px; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:#27343b;">
+              <h1 style="margin:0 0 16px 0; font-family:Georgia, 'Times New Roman', serif; font-size:26px; line-height:34px; font-weight:bold; color:#14323f;">
+                Join {{ organization_name }}
+              </h1>
+              <p style="margin:0 0 16px 0; font-size:16px; line-height:26px;">
+                Hi {{ invitee_name }},
+              </p>
+              <p style="margin:0 0 16px 0; font-size:16px; line-height:26px;">
+                {{ inviter_name }} has invited you to join <strong>{{ organization_name }}</strong> on {{ app_name }}.
+                Create your password and finish setting up your account to get started.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Button (bulletproof: works in Outlook too) -->
+          <tr>
+            <td align="left" style="padding:12px 36px 28px 36px;">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{{ invite_url }}"
+                           style="height:48px; v-text-anchor:middle; width:220px;" arcsize="12%"
+                           stroke="f" fillcolor="#0f6b5c">
+                <w:anchorlock/>
+                <center style="color:#ffffff; font-family:Arial, sans-serif; font-size:16px; font-weight:bold;">
+                  Complete your account
+                </center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-- -->
+              <a href="{{ invite_url }}" target="_blank"
+                 style="display:inline-block; padding:14px 28px; background-color:#0f6b5c; color:#ffffff; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; font-size:16px; font-weight:bold; line-height:20px; text-decoration:none; border-radius:6px;">
+                Complete your account
+              </a>
+              <!--<![endif]-->
+            </td>
+          </tr>
+
+          <!-- Expiry + fallback link -->
+          <tr>
+            <td style="padding:0 36px 32px 36px; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:#5b6a73; font-size:14px; line-height:22px;">
+              <p style="margin:0 0 12px 0;">
+                This invitation expires in {{ expires_in }}.
+              </p>
+              <p style="margin:0;">
+                If the button doesn't work, copy and paste this link into your browser:<br>
+                <a href="{{ invite_url }}" target="_blank" style="color:#0f6b5c; word-break:break-all;">{{ invite_url }}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 36px 28px 36px; border-top:1px solid #e3e7eb; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:#7a878f; font-size:13px; line-height:20px;">
+              Didn't expect this invitation? You can ignore this email and no account will be created.
+              <br><br>
+              {{ app_name }} &middot; {{ company_address }}
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

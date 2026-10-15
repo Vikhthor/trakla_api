@@ -19,6 +19,7 @@ ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 class WorkOrderFilterParams(FilterParams):
     organization_id: UUID
+    assignee_id: UUID | None = None
     completion_status: str | None = None
 
 class OrderItems(BaseModel):
@@ -55,7 +56,7 @@ class WorkOrderModel(BaseModel):
 class WorkOrderUpdateModel(BaseModel):
     model_config = {"extra": "forbid"}
     subject: str | None = None
-    description: str
+    description: str | None = None
     status: WorkOrderStatus | None = None
     customer_id: UUID | None = None
     address: str | None = None
@@ -75,7 +76,7 @@ class WorkOrderUpdateModel(BaseModel):
     currency: Currency | None = "NGN"
     labour_cost: float | None = None
     tax: float | None = None
-    order_items: list[OrderItems]
+    order_items: list[OrderItems] | None = None
     service_request_id: UUID | None = None
 
 router = APIRouter(
@@ -146,13 +147,16 @@ async def get_work_orders(
         WorkOrder.organization_id == current_user.organization_id
     ).offset(offset).limit(limit)
     orders = db.exec(statement).all()
+    print("orders", orders)
     resp_data = [{
         **order.model_dump(),
+        "proof_of_work": order.proof_of_work,
         "customer_name": order.customer.customer_name,
         "assignee": order.assignee,
         "order_items": order.order_items,
         "created_by": order.created_by
     } for order in orders]
+    print(resp_data)
     return resp_data
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -312,20 +316,21 @@ async def upload_proof_of_work(
     if not current_order:
         raise HTTPException(status_code=404, detail="Work order not found")
 
-    current_files = current_order.proof_of_work
-    if isinstance(current_files, str):
-        try:
-            current_files = json.loads(current_files)
-        except json.JSONDecodeError:
-            pass
-    elif not current_files:
-        current_files = []
+    # current_files = current_order.proof_of_work
+    # if isinstance(current_files, str):
+    #     try:
+    #         current_files = json.loads(current_files)
+    #     except json.JSONDecodeError:
+    #         pass
+    # elif not current_files:
+    #     current_files = []
 
     for file in pow_files:
         file_upload = FileUpload(
             file_name = file.get("filename"),
             file_type = file.get("file_type"),
             file_size = file.get("file_size"),
+            formated_size = file.get("formated_size"),
             file_url = file.get("url"),
             record_type = "Work Order",
             record_id = current_order.id,
@@ -333,9 +338,9 @@ async def upload_proof_of_work(
             owner_id = current_user.id
         )
         db.add(file_upload)
-        current_files.append(file.get("url"))
+        # current_files.append(file.get("url"))
 
-    current_order.proof_of_work = json.dumps(current_files)
+    # current_order.proof_of_work = json.dumps(current_files)
     current_order.updated_at = str(datetime.now())
     current_order.modifier_id = current_user.id
     db.add(current_order)

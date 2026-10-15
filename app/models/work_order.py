@@ -71,7 +71,17 @@ class WorkOrder(SQLModel, table=True):
     assignee_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     assignee: User | None = Relationship(sa_relationship_kwargs={"foreign_keys": "[WorkOrder.assignee_id]"})
     require_pow: bool | None = Field(default=False)
-    proof_of_work: str | None = Field(default=False)
+    proof_of_work: list["File"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(WorkOrder.id == foreign(File.record_id), "
+                "File.record_type == 'Work Order', "
+                "File.record_field == 'proof_of_work')"
+            ),
+            "viewonly": True,
+            "uselist": True,
+        }
+    )
     completion_status: WorkOrderCompletionStatus = "Pending"
     workflow_status: str | None = Field(default=None)
     currency: Currency | None = "NGN"

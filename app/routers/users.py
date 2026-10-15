@@ -12,8 +12,13 @@ import secrets, math, random
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import User, Organization, UserRole, Department, File as FileUpload
 from ..utils import FilterParams, get_current_user, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, upload_file
+from ..email import sendmail
+from ..config import get_settings
+from ..redis import RedisWrapper
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+cache = RedisWrapper()
+settings = get_settings()
 
 class UserFilterParams(FilterParams):
     organization_id: UUID
@@ -133,11 +138,19 @@ async def login(
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"access_token": access_token, "token_type": "bearer", "user": user}
+    user_data = {
+        **user.model_dump(),
+        "image": "" if not user.image else user.image.file_name
+    }
+    return {"access_token": access_token, "token_type": "bearer", "user": user_data}
 
 @router.get("/me")
 async def get_session_user(current_user: Annotated[UserModel, Depends(get_current_user)]):
-    return current_user
+    user_data = {
+        **current_user.model_dump(),
+        "image": "" if not current_user.image else current_user.image.file_name
+    }
+    return user_data
 
 @router.get("/otp")
 async def request_otp(email: Annotated[str, Query(title="User email")]):
@@ -147,7 +160,16 @@ async def request_otp(email: Annotated[str, Query(title="User email")]):
     tmp_id_length = 10
     tmp_id = secrets.token_hex(math.ceil(tmp_id_length / 2))[:tmp_id_length]
     otp = ''.join(random.sample(['1','2','3','4','5','6','7','8','9','0'],6))
-    return {'tmp_id': tmp_id, 'otp': otp} # TODO set OTP in cache and do not return it
+
+    cache.set_value(f"otp:{tmp_id}", otp, expires_in_sec=300)
+
+    sendmail(
+        recipients=email,
+        subject="Trakla OTP",
+        message=f"Your verification OTP is {otp}", 
+        delayed=False
+    )
+    return {'tmp_id': tmp_id}
 
 @router.post("/signup")
 async def signup_user(
@@ -248,6 +270,27 @@ async def invite_user(
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    try:
+        email_args = {
+            "app_name": "Trakla",
+            "organization_name": current_user.organization.organization_name,
+            "invitee_name": full_name,
+            "inviter_name": current_user.full_name,
+            "invite_url": f"{settings.app_url}/auth/password-reset?user_id={user_data.email}",
+            "expires_in": "48 hours",
+            "company_address": current_user.organization.address or "",
+        }
+        sendmail(
+            recipients=user_data.email,
+            subject=f"You're invited to join {current_user.organization.organization_name}",
+            template="user_invite",
+            args=email_args,
+            delayed=False
+        )
+    except Exception as e:
+        pass
+
     user_data = {
         "id": user.id,
         "first_name": user.first_name,
@@ -280,6 +323,7 @@ async def get_users(
     users = db.exec(statement).all()
     users_data = [{
         **user.model_dump(),
+        "image": "" if not user.image else user.image.file_name,
         "department": user.department,
         "roles": user.roles,
         "created_by": user.created_by
@@ -336,12 +380,17 @@ async def update_user(
     otp = user_dict.pop('otp', None)
     tmp_id = user_dict.pop('tmp_id', None)
     is_verified = False
+    if otp and tmp_id:
+        stored_otp = cache.get_value(f"otp:{tmp_id}")
+        if stored_otp != otp:
+            raise HTTPException(status_code=403, detail="Invalid OTP")
+        is_verified = True
 
     for k, v in user_dict.items():
         if k == 'organization_id':
             continue
         if k in ['email', 'phone', 'password'] and not is_verified:
-            pass # TODO verify user.otp with user.tmp_id
+            continue
         if k == 'password':
             v = get_password_hash(v)
         if k == 'roles':
@@ -377,7 +426,16 @@ async def update_user(
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
-    return current_user
+
+    resp_data = {
+        **current_user.model_dump(),
+        "image": "" if not current_user.image else current_user.image.file_name,
+        "department": current_user.department,
+        "roles": current_user.roles,
+        "created_by": current_user.created_by
+    }
+    
+    return resp_data
 
 @router.put("/upload-image/{user_id}", status_code=status.HTTP_200_OK)
 async def upload_profile_image(
@@ -391,17 +449,19 @@ async def upload_profile_image(
     """
     if image.content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=415, detail="Unsupported file type")
-    file_data = upload_file(image)
-    image_url = file_data.get('url')
 
     current_user = db.get(User, user_id)
     if not current_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    file_data = upload_file(image)
+    # image_url = file_data.get('url')
+
     file_upload = FileUpload(
         file_name = file_data.get("filename"),
         file_type = file_data.get("file_type"),
         file_size = file_data.get("file_size"),
+        formated_size = file_data.get("formated_size"),
         file_url = file_data.get("url"),
         record_type = "User",
         record_id = current_user.id,
@@ -410,10 +470,17 @@ async def upload_profile_image(
     )
     db.add(file_upload)
     
-    current_user.image = image_url
+    # current_user.image = image_url
     current_user.updated_at = str(datetime.now())
     current_user.modifier_id = session_user.id
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
-    return current_user
+    resp_data = {
+        **current_user.model_dump(),
+        "image": "" if not current_user.image else current_user.image.file_name,
+        "department": current_user.department,
+        "roles": current_user.roles,
+        "created_by": current_user.created_by
+    }
+    return resp_data

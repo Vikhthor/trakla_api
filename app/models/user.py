@@ -19,7 +19,16 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     phone: str = Field(unique=True, index=True)
     address: str | None = Field(default=None)
-    image: str | None = Field(default=None)
+    image: "File" = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(User.id == foreign(File.record_id), "
+                "File.record_type == 'User', "
+                "File.record_field == 'image')"
+            ),
+            "viewonly": True
+        }
+    )
     user_type: UserType
     department_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="department.id")
     department: "Department" = Relationship(back_populates="users", sa_relationship_kwargs={"foreign_keys": "[User.department_id]"})

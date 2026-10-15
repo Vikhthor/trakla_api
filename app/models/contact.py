@@ -20,7 +20,16 @@ class Contact(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     phone: str = Field(unique=True, index=True)
     gender: ContactGender | None  = Field(default=None)
-    image: str | None  = Field(default=None)
+    image: "File" = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(Contact.id == foreign(File.record_id), "
+                "File.record_type == 'Contact', "
+                "File.record_field == 'image')"
+            ),
+            "viewonly": True
+        }
+    )
     role: str | None  = Field(default=None)
     address: str | None  = Field(default=None)
     user_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")

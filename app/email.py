@@ -872,6 +872,8 @@ class QueueBuilder:
             # q = EmailQueue.new({**queue_data, **{"recipients": recipients}}, ignore_permissions=True)
             # send_now and q.send()
             if send_now:
+                print("queue_data",queue_data)
+                print("recipients", recipients)
                 smtp.send(**{**queue_data, **{"recipients": recipients}})
             return
         else:
@@ -923,7 +925,7 @@ class QueueBuilder:
 
     def as_dict(self, include_recipients=True):
         email_account = self.get_outgoing_email_account()
-        email_account_name = email_account and email_account.is_exists_in_db() and email_account.name
+        email_account_name = email_account and email_account.name
 
         mail = self.prepare_email_content()
         try:
@@ -1105,14 +1107,28 @@ def get_unsubscribe_message(unsubscribe_message: str, expose_recipients: str) ->
 
 def get_email_settings():
     app_settings = get_settings()
-    # conn_args = {
-    #             "server": email_account.server,
-    #             "login": email_account.login,
-    #             "password": email_account.password,
-    #             "port": email_account.port or "587",
-    #             "use_tls": email_account.use_tls or True
-    #         }
-    email_settings = {}
+    conn_args = {
+        "server": app_settings.smtp_host,
+        "login": app_settings.smtp_user,
+        "password": app_settings.smtp_password,
+        "port": app_settings.smtp_port or "587",
+        "use_tls": True,
+        "default_sender": app_settings.mail_from or "noreply@trakla.africa",
+        "email_id": app_settings.mail_from or "noreply@trakla.africa"
+    }
+    email_settings = {
+        **conn_args,
+        "name": "Trakla",
+        "brand_logo": "",
+        "footer": "",
+        "email_footer_address": "",
+        "disable_standard_email_footer": "",
+        "always_use_account_name_as_sender_name": True,
+        "always_use_account_email_id_as_sender": True,
+        "reply_to_addresses": [],
+        "add_reply_to_header": False,
+        "add_x_original_from": False,
+    }
     return _dict(email_settings)
 
 

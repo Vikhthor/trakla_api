@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, Path, Depends, HTTPException, status, APIRouter, Header
+from fastapi import FastAPI, Query, Path, Depends, HTTPException, status, APIRouter, Header, File, UploadFile
 from pydantic import BaseModel, AfterValidator, Field
 from enum import Enum
 from typing import Annotated, Literal
@@ -6,10 +6,12 @@ import random
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import Technician, User
-from ..utils import FilterParams, get_current_user
+from ..models import Technician, User, File as FileUpload
+from ..utils import FilterParams, get_current_user, upload_file
 import sqlalchemy
 from sqlalchemy.orm import joinedload, selectinload
+
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 class TechnicianFilterParams(FilterParams):
     organization_id: UUID
@@ -78,6 +80,7 @@ async def get_technicians(
     technicians = db.exec(statement).all()
     resp_data = [{
         **technician.model_dump(),
+        "image": "" if not technician.image else technician.image.file_name,
         "user": technician.user,
         "created_by": technician.created_by
     } for technician in technicians]
@@ -177,6 +180,50 @@ async def update_technician(
     db.commit()
     db.refresh(current_technician)
     return current_technician
+
+@router.put("/upload-image/{technician_id}", status_code=status.HTTP_200_OK)
+async def upload_profile_image(
+    technician_id: Annotated[UUID, Path(title="The ID of the technician to update")],
+    image: Annotated[UploadFile, File(description="Technician profile image")],
+    session_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+):
+    """
+    Upload profile image
+    """
+    if image.content_type not in ALLOWED_TYPES:
+        raise HTTPException(status_code=415, detail="Unsupported file type")
+
+    current_technician = db.get(Technician, technician_id)
+    if not current_technician:
+        raise HTTPException(status_code=404, detail="Technician not found")
+
+    file_data = upload_file(image)
+
+    file_upload = FileUpload(
+        file_name = file_data.get("filename"),
+        file_type = file_data.get("file_type"),
+        file_size = file_data.get("file_size"),
+        formated_size = file_data.get("formated_size"),
+        file_url = file_data.get("url"),
+        record_type = "Technician",
+        record_id = current_technician.id,
+        record_field = "image",
+        owner_id = session_user.id
+    )
+    db.add(file_upload)
+    
+    current_technician.updated_at = str(datetime.now())
+    current_technician.modifier_id = session_user.id
+    db.add(current_technician)
+    db.commit()
+    db.refresh(current_technician)
+    resp_data = {
+        **current_technician.model_dump(),
+        "image": "" if not current_technician.image else current_technician.image.file_name,
+        "created_by": current_technician.created_by
+    }
+    return resp_data
 
 @router.delete("/{technician_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_technician(

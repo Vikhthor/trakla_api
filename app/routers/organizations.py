@@ -7,8 +7,10 @@ import random
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import Organization, User
-from ..utils import FilterParams, get_current_user
+from ..models import Organization, User, File as FileUpload
+from ..utils import FilterParams, get_current_user, upload_file
+
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 async def get_token_header(x_token: Annotated[str, Header()]):
     if x_token != "fake-super-secret-token":
@@ -41,7 +43,13 @@ async def get_organization(
     organization = db.get(Organization, organization_id)
     if not organization:
         raise HTTPException(status_code=404, detail="Organization not found")
-    return organization
+
+    resp_data = {
+        **organization.model_dump(),
+        "brand_icon": "" if not organization.brand_icon else organization.brand_icon.file_name,
+        "logo": "" if not organization.logo else organization.logo.file_name,
+    }
+    return resp_data
 
 @router.get("/")
 async def get_organizations(
@@ -60,7 +68,13 @@ async def get_organizations(
         Organization.id == current_user.organization.id
     ).offset(offset).limit(limit)
     organizations = db.exec(statement).all()
-    return organizations
+
+    resp_data = [{
+        **organization.model_dump(),
+        "brand_icon": "" if not organization.brand_icon else organization.brand_icon.file_name,
+        "logo": "" if not organization.logo else organization.logo.file_name,
+    } for organization in organizations]
+    return resp_data
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_customer(
@@ -101,4 +115,65 @@ async def update_organization(
     db.add(current_organization)
     db.commit()
     db.refresh(current_organization)
-    return current_organization
+
+    resp_data = {
+        **current_organization.model_dump(),
+        "brand_icon": "" if not current_organization.brand_icon else current_organization.brand_icon.file_name,
+        "logo": "" if not current_organization.logo else current_organization.logo.file_name,
+    }
+    return resp_data
+
+@router.put("/upload-image/{organization_id}", status_code=status.HTTP_200_OK)
+async def upload_profile_image(
+    organization_id: Annotated[UUID, Path(title="The ID of the user to update")],
+    session_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    brand_icon: Annotated[UploadFile | None, File(description="organization brand icon image")] = None,
+    logo: Annotated[UploadFile | None, File(description="organization brand icon image")] = None
+):
+    """
+    Upload profile image
+    """
+    images = {
+        "brand_icon": brand_icon,
+        "logo": logo
+    }
+
+    organization = db.get(Organization, organization_id)
+    if not organization:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    for field_name, image in images.items():
+        if not image:
+            continue
+
+        if image.content_type not in ALLOWED_TYPES:
+            raise HTTPException(status_code=415, detail="Unsupported file type")
+        
+        file_data = upload_file(image)
+
+        file_upload = FileUpload(
+            file_name = file_data.get("filename"),
+            file_type = file_data.get("file_type"),
+            file_size = file_data.get("file_size"),
+            formated_size = file_data.get("formated_size"),
+            file_url = file_data.get("url"),
+            record_type = "Organization",
+            record_id = organization_id,
+            record_field = field_name,
+            owner_id = session_user.id
+        )
+        db.add(file_upload)
+    
+    organization.updated_at = str(datetime.now())
+    organization.modifier_id = session_user.id
+    db.add(organization)
+    db.commit()
+    db.refresh(organization)
+    
+    resp_data = {
+        **organization.model_dump(),
+        "brand_icon": "" if not organization.brand_icon else organization.brand_icon.file_name,
+        "logo": "" if not organization.logo else organization.logo.file_name,
+    }
+    return resp_data

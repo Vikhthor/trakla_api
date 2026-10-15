@@ -93,7 +93,7 @@ async def get_customers(
         "customer_group": customer.group.group_name,
         "contacts": customer.contacts,
         "created_by": customer.created_by
-    } for customer, req_count in customers]
+    } for customer, req_count in customers if customer]
     return resp_data
 
 @router.post("/", status_code=status.HTTP_201_CREATED)

@@ -117,11 +117,12 @@ def upload_file(file):
     finally:
         file.file.close()
 
-    file_size = format_size(get_size_bytes(file))
+    file_size = get_size_bytes(file)
     return {
         "filename": filename, 
         "file_type": file.content_type, 
         "file_size": file_size, 
+        "formated_size": format_size(file_size),
         "url": f"/public/files/{filename}"
     }
 

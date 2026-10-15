@@ -7,8 +7,26 @@ class Organization(SQLModel, table=True):
     # id: int | None = Field(default=None, primary_key=True)
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     organization_name: str # user organization
-    brand_icon: str | None = Field(default=None)
-    logo: str | None = Field(default=None)
+    brand_icon: "File" = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(Organization.id == foreign(File.record_id), "
+                "File.record_type == 'Organization', "
+                "File.record_field == 'brand_icon')"
+            ),
+            "viewonly": True
+        }
+    )
+    logo: "File" = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(Organization.id == foreign(File.record_id), "
+                "File.record_type == 'Organization', "
+                "File.record_field == 'logo')"
+            ),
+            "viewonly": True
+        }
+    )
     email: str | None = Field(default=None)
     phone: str | None = Field(default=None)
     address: str

@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     smtp_port: str | None = None
     smtp_user: str | None = None
     smtp_password: str | None = None
+    mail_from: str | None = None
+    app_url: str | None = None
 
 @lru_cache
 def get_settings():

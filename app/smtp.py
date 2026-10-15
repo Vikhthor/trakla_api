@@ -8,7 +8,7 @@ from contextlib import suppress
 from email.parser import Parser
 from email.policy import SMTP
 import quopri
-from .utils import cint, cstr, get_traceback, get_url, parse_json, safe_encode
+from .utils import cint, cstr, get_traceback, get_url, parse_json, safe_encode, _dict
 
 
 class InvalidEmailCredentials(Exception):
@@ -303,6 +303,15 @@ class SMTPClient:
         message = self.include_attachments(message)
         return message
 
+    def parse_recipients(self, recipients):
+        _recipients = []
+        for r in recipients:
+            if isinstance(r, str):
+                _recipients.append(_dict({"email": r.strip(), "status": "Not Sent"}))
+            else:
+                _recipients.append(_dict(r))
+        return _recipients
+
     def send(
         self,
         recipients,
@@ -311,13 +320,16 @@ class SMTPClient:
         email_read_tracker_url: str | None = None,
         add_unsubscribe_link: bool | None = False,
         sender: str | None = "noreply@trakla.africa",
-        expose_recipients: str | None = None
+        expose_recipients: str | None = None,
+        **kwargs
     ):
         """Send emails to recipients."""
 
         # with SendMailContext(self, smtp_server_instance, frappe_mail_client) as ctx:
 
             # last_message = None
+
+        recipients = self.parse_recipients(recipients)
 
         for recipient in recipients:
             # if recipient.is_mail_sent():

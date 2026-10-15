@@ -7,10 +7,12 @@ import random
 from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import Contact, User
-from ..utils import FilterParams, get_current_user
+from ..models import Contact, User, File as FileUpload
+from ..utils import FilterParams, get_current_user, upload_file
 import sqlalchemy
 from sqlalchemy.orm import joinedload, selectinload
+
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 class ContactFilterParams(FilterParams):
     organization_id: UUID
@@ -73,6 +75,7 @@ async def get_contacts(
     contacts = db.exec(statement).all()
     resp_data = [{
         **contact.model_dump(),
+        "image": "" if not contact.image else contact.image.file_name,
         "created_by": contact.created_by
     } for contact in contacts]
     return resp_data
@@ -147,6 +150,45 @@ async def update_contact(
     current_contact.full_name = full_name
     current_contact.updated_at = str(datetime.now())
     current_contact.modifier_id = current_user.id
+    db.add(current_contact)
+    db.commit()
+    db.refresh(current_contact)
+    return current_contact
+
+@router.put("/upload-image/{contact_id}", status_code=status.HTTP_200_OK)
+async def upload_profile_image(
+    contact_id: Annotated[UUID, Path(title="The ID of the contact to update")],
+    image: Annotated[UploadFile, File(description="Contact profile image")],
+    session_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+):
+    """
+    Upload contact image
+    """
+    if image.content_type not in ALLOWED_TYPES:
+        raise HTTPException(status_code=415, detail="Unsupported file type")
+
+    current_contact = db.get(Contact, contact_id)
+    if not current_contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+
+    file_data = upload_file(image)
+
+    file_upload = FileUpload(
+        file_name = file_data.get("filename"),
+        file_type = file_data.get("file_type"),
+        file_size = file_data.get("file_size"),
+        formated_size = file_data.get("formated_size"),
+        file_url = file_data.get("url"),
+        record_type = "Contact",
+        record_id = current_contact.id,
+        record_field = "image",
+        owner_id = session_user.id
+    )
+    db.add(file_upload)
+    
+    current_contact.updated_at = str(datetime.now())
+    current_contact.modifier_id = session_user.id
     db.add(current_contact)
     db.commit()
     db.refresh(current_contact)

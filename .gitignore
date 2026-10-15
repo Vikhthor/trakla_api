@@ -1,6 +1,8 @@
 database.db
 .venv/
 logs/
+public/files/*
+!public/files/.gitkeep
 *.egg-info
 .env
 *.db

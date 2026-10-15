@@ -9,7 +9,8 @@ class File(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     file_name: str
     file_type: str | None = None
-    file_size: str | None = None
+    file_size: int | None = None
+    formated_size: str | None = None
     file_url: str
     record_type: str | None = None
     record_id: uuid.UUID | None = None
