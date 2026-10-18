@@ -14,7 +14,7 @@ class AuditTrail(SQLModel, table=True):
     change: str
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     created_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[AuditTrail.owner_id]"})
-    created_at: str | None  = Field(default_factory=datetime.now)
+    created_at: datetime | None  = Field(default_factory=datetime.now)
     modifier_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     updated_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[AuditTrail.modifier_id]"})
-    updated_at: str | None  = Field(default_factory=datetime.now)
+    updated_at: datetime | None  = Field(default_factory=datetime.now)

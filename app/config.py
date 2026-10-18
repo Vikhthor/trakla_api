@@ -1,5 +1,11 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from enum import Enum
+
+class DBType(str, Enum):
+    sqlite = "sqlite"
+    mysql = "mysql"
+    postgres = "postgres"
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
@@ -7,6 +13,7 @@ class Settings(BaseSettings):
     db_name: str
     db_user: str
     db_password: str
+    db_type: DBType | None = "mysql"
     allow_cors: str
     smtp_host: str | None = None
     smtp_port: str | None = None

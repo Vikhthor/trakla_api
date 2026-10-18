@@ -12,7 +12,7 @@ class Message(SQLModel, table=True):
     message: str
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     created_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[Message.owner_id]"})
-    created_at: str | None  = Field(default_factory=datetime.now)
+    created_at: datetime | None  = Field(default_factory=datetime.now)
     modifier_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     updated_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[Message.modifier_id]"})
-    updated_at: str | None  = Field(default_factory=datetime.now)
+    updated_at: datetime | None  = Field(default_factory=datetime.now)

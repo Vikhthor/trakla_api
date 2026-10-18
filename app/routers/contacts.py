@@ -8,7 +8,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import Contact, User, File as FileUpload
-from ..utils import FilterParams, get_current_user, upload_file
+from ..utils import FilterParams, get_current_user, upload_file, get_datetime
 import sqlalchemy
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -106,8 +106,8 @@ async def create_contact(
         organization_id = contact.organization_id or current_user.organization_id,
         owner_id=current_user.id,
         modifier_id=current_user.id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     try:
         db.add(contact)
@@ -125,7 +125,7 @@ async def create_contact(
 
 @router.put("/{contact_id}", status_code=status.HTTP_200_OK)
 async def update_contact(
-    contact_id: Annotated[int, Path(title="The ID of the contact to update")],
+    contact_id: Annotated[UUID, Path(title="The ID of the contact to update")],
     contact: ContactModel, 
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
@@ -148,7 +148,7 @@ async def update_contact(
     if contact_dict.get("last_name"):
         full_name = f"{contact_dict.get("first_name")} {contact_dict.get("last_name")}"
     current_contact.full_name = full_name
-    current_contact.updated_at = str(datetime.now())
+    current_contact.updated_at = get_datetime()
     current_contact.modifier_id = current_user.id
     db.add(current_contact)
     db.commit()
@@ -187,7 +187,7 @@ async def upload_profile_image(
     )
     db.add(file_upload)
     
-    current_contact.updated_at = str(datetime.now())
+    current_contact.updated_at = get_datetime()
     current_contact.modifier_id = session_user.id
     db.add(current_contact)
     db.commit()

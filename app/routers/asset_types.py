@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import AssetType, User
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, get_datetime
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -86,8 +86,8 @@ async def create_asset_type(
     group = AssetType(
         asset_type_name = asset_type.asset_type_name,
         organization_id = asset_type.organization_id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     db.add(group)
     db.commit()
@@ -96,7 +96,7 @@ async def create_asset_type(
 
 @router.put("/{asset_type_id}", status_code=status.HTTP_200_OK)
 async def update_asset_type(
-    asset_type_id: Annotated[int, Path(title="The ID of the customer group to update")],
+    asset_type_id: Annotated[UUID, Path(title="The ID of the customer group to update")],
     asset_type: AssetTypeModel, 
     db: Annotated[Session, Depends(get_db)]
 ) -> AssetType:
@@ -111,7 +111,7 @@ async def update_asset_type(
         if k == 'organization_id':
             continue
         current_asset_type.sqlmodel_update({k: v})
-    current_asset_type.updated_at = str(datetime.now())
+    current_asset_type.updated_at = get_datetime()
     db.add(current_asset_type)
     db.commit()
     db.refresh(current_asset_type)

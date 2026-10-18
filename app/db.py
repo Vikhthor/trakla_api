@@ -1,6 +1,8 @@
-from sqlmodel import Session, SQLModel, create_engine, select, col, or_, func, case
+from sqlmodel import Session, SQLModel, create_engine, select, col, or_, func, case, exists
 from sqlalchemy import MetaData
 from sqlalchemy.orm import selectinload
+from uuid import UUID
+from datetime import date, datetime
 from .models import *
 from alembic import command
 from alembic.config import Config
@@ -119,7 +121,7 @@ class Db:
     def parse_filters(self, model, filters):
         query_filters = []
         for k, v in filters.items():
-            if isinstance(v, str | int | bool | float):
+            if isinstance(v, str | int | bool | float | UUID | date | datetime):
                 query_filters.append(getattr(model,k) == v)
             elif isinstance(v, list):
                 cond, value = v

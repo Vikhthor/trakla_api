@@ -12,7 +12,7 @@ from ..db import engine, Session, get_db, select, col, or_, Db
 from ..models import WorkOrder, WorkOrderStatus, WorkOrderCategory, WorkOrderPriority, \
     WorkOrderAssigneeType, WorkOrderCompletionStatus, Currency, User, OrderItem, AssetType, \
     File as FileUpload
-from ..utils import FilterParams, get_current_user, upload_file
+from ..utils import FilterParams, get_current_user, upload_file, getdate, get_datetime
 
 EARTH_RADIUS_M = 6_371_000  # mean Earth radius in meters
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -61,9 +61,9 @@ class WorkOrderUpdateModel(BaseModel):
     customer_id: UUID | None = None
     address: str | None = None
     address_geolocation: str | None = None
-    status: WorkOrderStatus = "Open"
+    status: WorkOrderStatus | None = None
     category: WorkOrderCategory = "Preventive Maintenance"
-    priority: WorkOrderPriority = "Low"
+    priority: WorkOrderPriority | None = None
     asset_type_id: UUID | None = None
     scheduled_date: str | None = None
     due_date: str | None = None
@@ -72,8 +72,8 @@ class WorkOrderUpdateModel(BaseModel):
     assignee_id: UUID | None = None
     require_pow: bool | None = None
     proof_of_work: str | None = None
-    completion_status: WorkOrderCompletionStatus = "Pending"
-    currency: Currency | None = "NGN"
+    completion_status: WorkOrderCompletionStatus | None = None
+    currency: Currency | None = None
     labour_cost: float | None = None
     tax: float | None = None
     order_items: list[OrderItems] | None = None
@@ -147,7 +147,6 @@ async def get_work_orders(
         WorkOrder.organization_id == current_user.organization_id
     ).offset(offset).limit(limit)
     orders = db.exec(statement).all()
-    print("orders", orders)
     resp_data = [{
         **order.model_dump(),
         "proof_of_work": order.proof_of_work,
@@ -156,7 +155,6 @@ async def get_work_orders(
         "order_items": order.order_items,
         "created_by": order.created_by
     } for order in orders]
-    print(resp_data)
     return resp_data
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -210,7 +208,7 @@ async def create_work_order(
         category = work_order.category,
         priority = work_order.priority,
         asset_type = asset_type,
-        scheduled_date = work_order.scheduled_date,
+        scheduled_date = getdate(work_order.scheduled_date) if work_order.scheduled_date else None,
         due_date = work_order.due_date,
         instructions = work_order.instructions,
         assignee_type = work_order.assignee_type,
@@ -224,8 +222,8 @@ async def create_work_order(
         service_request_id = work_order.service_request_id,
         owner_id=current_user.id,
         modifier_id=current_user.id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     db.add(order)
     db.commit()
@@ -247,13 +245,16 @@ async def update_work_order(
         raise HTTPException(status_code=404, detail="Work order not found")
     req_dict = work_order.model_dump(exclude_unset=True)
     for k, v in req_dict.items():
+        if k == "scheduled_date" and v:
+            v = getdate(work_order.scheduled_date)
+        
         if k == "status":
             if v == "Scheduled" and current_order.status != "Scheduled":
-                current_order.scheduled_date = str(datetime.now())
+                current_order.scheduled_date = getdate()
             elif v == "Closed" and current_order.status != "Closed":
-                current_order.closing_date = str(datetime.now())
+                current_order.closing_date = getdate()
             elif v == "In Progress" and current_order.status != "In Progress":
-                current_order.actual_date = str(datetime.now())
+                current_order.actual_date = getdate()
         if k == "order_items":
             current_order.order_items = []
             for itm in v:
@@ -288,7 +289,7 @@ async def update_work_order(
         if current_order.scheduled_date:
             current_order.status = "Scheduled"
 
-    current_order.updated_at = str(datetime.now())
+    current_order.updated_at = get_datetime()
     current_order.modifier_id = current_user.id
     db.add(current_order)
     db.commit()
@@ -341,7 +342,7 @@ async def upload_proof_of_work(
         # current_files.append(file.get("url"))
 
     # current_order.proof_of_work = json.dumps(current_files)
-    current_order.updated_at = str(datetime.now())
+    current_order.updated_at = get_datetime()
     current_order.modifier_id = current_user.id
     db.add(current_order)
     db.commit()

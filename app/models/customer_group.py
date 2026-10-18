@@ -10,9 +10,9 @@ class CustomerGroup(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     group_name: str
     organization_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="organization.id")
-    created_at: str | None  = Field(default_factory=datetime.now)
+    created_at: datetime | None  = Field(default_factory=datetime.now)
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     created_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[CustomerGroup.owner_id]"})
     modifier_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     updated_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[CustomerGroup.modifier_id]"})
-    updated_at: str | None  = Field(default_factory=datetime.now)
+    updated_at: datetime | None  = Field(default_factory=datetime.now)

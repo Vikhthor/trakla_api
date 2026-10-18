@@ -8,6 +8,9 @@ from uuid import UUID
 from ..db import Session, get_db, select, col, or_, get_count, func, case
 from ..models import WorkOrder, User, Customer, ServiceRequest, Technician
 from ..utils import FilterParams, get_current_user, getdate, get_datetime, add_to_date, get_first_day, flt
+from ..config import get_settings
+
+app_settings = get_settings()
 
 class AnalyticsFilterParams(FilterParams):
     organization_id: UUID
@@ -49,7 +52,6 @@ async def get_dashboard_stats(
     customer_id = filter_query.customer_id #TODO: Define util function to get customer from user
 
     resp_data = []
-
     total_work_orders = get_count(WorkOrder, db, {
         "organization_id": current_user.organization_id,
         "assignee_id": current_user.id if current_user.user_type == "technician" else None,
@@ -228,7 +230,12 @@ async def get_status_timeline(
     # Extract the month/year boundary (PostgreSQL example using func.date_trunc('month', WorkOrder.created_at))
     # For SQLite, use: func.strftime('%Y-%m', WorkOrder.created_at)
     # For MySQL, use: func.date_format(WorkOrder.created_at, '%Y-%m')
-    month_bucket = func.strftime('%Y-%m-%d', WorkOrder.created_at).label("date")
+    month_bucket = func.date_format(WorkOrder.created_at, '%Y-%m-%d').label("date")
+    if app_settings.db_type == "sqlite":
+        month_bucket = func.strftime('%Y-%m-%d', WorkOrder.created_at).label("date")
+    elif app_settings.db_type == "postgres":
+        month_bucket = func.date_trunc('month', WorkOrder.created_at).label("date")
+
     open_statuses = ["Open","Scheduled","Assigned","In Progress","On Hold","Quality Check"]
     closed_statuses = ["Closed","Completed","Cancelled"]
     stmt = select(

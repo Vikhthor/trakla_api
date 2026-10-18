@@ -1,7 +1,7 @@
 from sqlmodel import Field, SQLModel, Relationship
 from typing import Optional
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, date
 import uuid
 from .user import User
 from .order_item import OrderItem
@@ -11,8 +11,12 @@ from .customer import Customer
 class WorkOrderCategory(str, Enum):
     preventive = "Preventive Maintenance"
     predictive = "Predictive Maintenance"
+    corrective = "Corrective Maintenance"
+    routine = "Routine Maintenance"
+    emergency = "Emergency Maintenance"
     condition = "Condition-Based Maintenance"
     inspection = "Inspection Request"
+    replacement = "Replacement Request"
     recall = "Recall"
     compliance = "Compliance/Safety"
     repair = "General Repair"
@@ -65,7 +69,7 @@ class WorkOrder(SQLModel, table=True):
     closing_date: str | None = Field(default=None) # read-only. completion date of the order
     due_date: str | None = Field(default=None) # read-only. due date of order
     instructions: str | None = Field(default=None)
-    scheduled_date: str | None = Field(default=None) # scheduled date accepted by assignee
+    scheduled_date: date | None = Field(default=None, index=True)
     actual_date: str | None = Field(default=None) # read-only. actual date of order execution
     assignee_type: WorkOrderAssigneeType | None = Field(default=None)
     assignee_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
@@ -94,8 +98,8 @@ class WorkOrder(SQLModel, table=True):
     maintenance_schedule_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="maintenance_schedule.id")
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     created_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[WorkOrder.owner_id]"})
-    created_at: str | None  = Field(default_factory=datetime.now)
+    created_at: datetime | None  = Field(default_factory=datetime.now)
     modifier_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     updated_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[WorkOrder.modifier_id]"})
-    updated_at: str | None  = Field(default_factory=datetime.now)
+    updated_at: datetime | None  = Field(default_factory=datetime.now)
     # bill_of_materials - See BOM item

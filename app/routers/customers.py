@@ -5,9 +5,9 @@ from typing import Annotated, Literal
 import random
 from datetime import datetime
 from uuid import UUID
-from ..db import engine, Session, get_db, select, col, or_, func
+from ..db import engine, Session, get_db, select, col, or_, func, get_count
 from ..models import Customer, Contact, User, CustomerGroup, ServiceRequest
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, get_datetime
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -80,20 +80,26 @@ async def get_customers(
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
     statement = select(
-        Customer, 
-        func.count(ServiceRequest.id).label("pending_request_count") # pylint: disable=not-callable
-    ).join(ServiceRequest, isouter=True).where(
+        Customer
+    ).where(
         Customer.organization_id == current_user.organization_id,
-        ServiceRequest.status == "Open"
     ).offset(offset).limit(limit)
     customers = db.exec(statement).all()
-    resp_data = [{
-        **customer.model_dump(),
-        "pending_request_count": req_count,
-        "customer_group": customer.group.group_name,
-        "contacts": customer.contacts,
-        "created_by": customer.created_by
-    } for customer, req_count in customers if customer]
+
+    resp_data = []
+    for customer in customers:
+        pending_request_count = get_count(ServiceRequest, db, {
+            "organization_id": current_user.organization_id,
+            "customer_id": customer.id,
+            "status": "Open"
+        })
+        resp_data.append({
+            **customer.model_dump(),
+            "pending_request_count": pending_request_count,
+            "customer_group": customer.group.group_name,
+            "contacts": customer.contacts,
+            "created_by": customer.created_by
+        })
     return resp_data
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -131,8 +137,8 @@ async def create_customer(
                 organization_id = current_user.organization_id,
                 owner_id=current_user.id,
                 modifier_id=current_user.id,
-                created_at=str(datetime.now()),
-                updated_at=str(datetime.now())
+                created_at=get_datetime(),
+                updated_at=get_datetime()
             )
 
     customer = Customer(
@@ -146,8 +152,8 @@ async def create_customer(
         primary_contact_id = primary_contact_id,
         organization_id = customer.organization_id,
         owner_id=current_user.id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     db.add(customer)
     db.commit()
@@ -156,7 +162,7 @@ async def create_customer(
 
 @router.put("/{customer_id}", status_code=status.HTTP_200_OK)
 async def update_customer(
-    customer_id: Annotated[int, Path(title="The ID of the customer to update")],
+    customer_id: Annotated[UUID, Path(title="The ID of the customer to update")],
     customer: CustomerModel, 
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
@@ -196,15 +202,15 @@ async def update_customer(
                     organization_id = current_user.organization_id,
                     owner_id=current_user.id,
                     modifier_id=current_user.id,
-                    created_at=str(datetime.now()),
-                    updated_at=str(datetime.now())
+                    created_at=get_datetime(),
+                    updated_at=get_datetime()
                 )
             current_customer.group = group
             continue
         
         current_customer.sqlmodel_update({k: v})
     
-    current_customer.updated_at = str(datetime.now())
+    current_customer.updated_at = get_datetime()
     current_customer.modifier_id = current_user.id
     db.add(current_customer)
     db.commit()

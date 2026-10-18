@@ -1,7 +1,7 @@
 from sqlmodel import Field, SQLModel, Relationship
 from enum import Enum
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 import uuid
 from .user import User
 from .order_item import OrderItem
@@ -59,7 +59,7 @@ class MaintenanceSchedule(SQLModel, table=True):
     tax: float
     interval: int
     interval_unit: str
-    next_schedule_date: str
+    next_schedule_date: date | None = Field(default=None, index=True)
     end_date: str | None = Field(default=None)
     reminder_days_before: str # comma separated integers
     maintenance_items: list[OrderItem] = Relationship(
@@ -67,7 +67,7 @@ class MaintenanceSchedule(SQLModel, table=True):
     )
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     created_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[MaintenanceSchedule.owner_id]"})
-    created_at: str | None  = Field(default_factory=datetime.now)
+    created_at: datetime | None  = Field(default_factory=datetime.now)
     modifier_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")
     updated_by: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[MaintenanceSchedule.modifier_id]"})
-    updated_at: str | None  = Field(default_factory=datetime.now)
+    updated_at: datetime | None  = Field(default_factory=datetime.now)

@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import ServiceRequest, ServiceRequestStatus, User
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, get_datetime
 
 class ServiceRequestFilterParams(FilterParams):
     organization_id: UUID
@@ -24,6 +24,7 @@ class ServiceRequestUpdateModel(BaseModel):
     model_config = {"extra": "forbid"}
     subject: str | None = None
     description: str | None = None
+    customer_id: UUID | None = None
     status: ServiceRequestStatus | None = None
 
 router = APIRouter(
@@ -95,8 +96,8 @@ async def create_service_request(
         organization_id = service_request.organization_id or current_user.organization_id,
         owner_id=current_user.id,
         modifier_id=current_user.id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     db.add(service_req)
     db.commit()
@@ -105,7 +106,7 @@ async def create_service_request(
 
 @router.put("/{request_id}", status_code=status.HTTP_200_OK)
 async def update_service_request(
-    request_id: Annotated[int, Path(title="The ID of the service request to update")],
+    request_id: Annotated[UUID, Path(title="The ID of the service request to update")],
     service_request: ServiceRequestUpdateModel, 
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
@@ -119,9 +120,27 @@ async def update_service_request(
     req_dict = service_request.model_dump(exclude_unset=True)
     for k, v in req_dict.items():
         current_req.sqlmodel_update({k: v})
-    current_req.updated_at = str(datetime.now())
+    current_req.updated_at = get_datetime()
     current_req.modifier_id = current_user.id
     db.add(current_req)
     db.commit()
     db.refresh(current_req)
     return current_req
+
+@router.delete("/{request_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_work_order(
+    request_id: Annotated[UUID, Path(title="The ID of the service request to delete")],
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+) -> None:
+    """
+        Delete existing service request
+    """
+    current_order = db.get(ServiceRequest, request_id)
+    if not current_order:
+        raise HTTPException(status_code=404, detail="Service request not found")
+    if current_order.organization_id != current_user.organization_id:
+        return
+    db.delete(current_order)
+    db.commit()
+    return

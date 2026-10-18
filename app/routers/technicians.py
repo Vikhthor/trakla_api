@@ -7,7 +7,8 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import Technician, User, File as FileUpload
-from ..utils import FilterParams, get_current_user, upload_file
+from ..utils import FilterParams, get_current_user, upload_file, get_datetime
+from .users import get_password_hash
 import sqlalchemy
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -24,6 +25,7 @@ class TechnicianModel(BaseModel):
     last_name: str | None = None
     email: str | None = None
     phone: str | None = None
+    password: str | None = None
     image: str | None = None
     address: str | None = None
     geolocation: str | None = None
@@ -114,6 +116,7 @@ async def create_technician(
             full_name = full_name,
             email = technician.email,
             phone = technician.phone,
+            password = get_password_hash(technician.password),
             address = technician.address,
             user_type = "Technician",
             organization_id = technician.organization_id or current_user.organization_id
@@ -132,8 +135,8 @@ async def create_technician(
         organization_id = technician.organization_id or current_user.organization_id,
         owner_id=current_user.id,
         modifier_id=current_user.id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     try:
         db.add(technician)
@@ -151,7 +154,7 @@ async def create_technician(
 
 @router.put("/{technician_id}", status_code=status.HTTP_200_OK)
 async def update_technician(
-    technician_id: Annotated[int, Path(title="The ID of the technician to update")],
+    technician_id: Annotated[UUID, Path(title="The ID of the technician to update")],
     technician: TechnicianModel, 
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
@@ -174,7 +177,7 @@ async def update_technician(
     if technician_dict.get("last_name"):
         full_name = f"{technician_dict.get("first_name")} {technician_dict.get("last_name")}"
     current_technician.full_name = full_name
-    current_technician.updated_at = str(datetime.now())
+    current_technician.updated_at = get_datetime()
     current_technician.modifier_id = current_user.id
     db.add(current_technician)
     db.commit()
@@ -213,7 +216,7 @@ async def upload_profile_image(
     )
     db.add(file_upload)
     
-    current_technician.updated_at = str(datetime.now())
+    current_technician.updated_at = get_datetime()
     current_technician.modifier_id = session_user.id
     db.add(current_technician)
     db.commit()

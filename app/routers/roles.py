@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import UserRole, UserPermission, User
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, get_datetime
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -127,8 +127,8 @@ async def create_role(
         organization_id = role.organization_id,
         owner_id=current_user.id,
         modifier_id=current_user.id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     db.add(role)
     db.commit()
@@ -137,7 +137,7 @@ async def create_role(
 
 @router.put("/{role_id}", status_code=status.HTTP_200_OK)
 async def update_role(
-    role_id: Annotated[int, Path(title="The ID of the customer group to update")],
+    role_id: Annotated[UUID, Path(title="The ID of the customer group to update")],
     role: UserRoleModel,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
@@ -174,7 +174,7 @@ async def update_role(
                     ))
             v = role_permissions
         current_role.sqlmodel_update({k: v})
-    current_role.updated_at = str(datetime.now())
+    current_role.updated_at = get_datetime()
     current_role.modifier_id = current_user.id
     db.add(current_role)
     db.commit()

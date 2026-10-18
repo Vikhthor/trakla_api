@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import OrderItem, User
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, get_datetime
 
 class OrderItemFilterParams(FilterParams):
     organization_id: UUID
@@ -97,7 +97,7 @@ async def update_order_item(
     item_dict = order_item.model_dump(exclude_unset=True)
     for k, v in item_dict.items():
         current_item.sqlmodel_update({k: v})
-    current_item.updated_at = str(datetime.now())
+    current_item.updated_at = get_datetime()
     db.add(current_item)
     db.commit()
     db.refresh(current_item)

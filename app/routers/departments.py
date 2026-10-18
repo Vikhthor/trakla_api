@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import Department, User
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, get_datetime
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -86,8 +86,8 @@ async def create_department(
     group = Department(
         department_name = department.department_name,
         organization_id = department.organization_id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     db.add(group)
     db.commit()
@@ -96,7 +96,7 @@ async def create_department(
 
 @router.put("/{department_id}", status_code=status.HTTP_200_OK)
 async def update_department(
-    department_id: Annotated[int, Path(title="The ID of the customer group to update")],
+    department_id: Annotated[UUID, Path(title="The ID of the customer group to update")],
     department: DepartmentModel, 
     db: Annotated[Session, Depends(get_db)]
 ) -> Department:
@@ -111,7 +111,7 @@ async def update_department(
         if k == 'organization_id':
             continue
         current_department.sqlmodel_update({k: v})
-    current_department.updated_at = str(datetime.now())
+    current_department.updated_at = get_datetime()
     db.add(current_department)
     db.commit()
     db.refresh(current_department)

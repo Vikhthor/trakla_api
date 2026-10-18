@@ -1,4 +1,5 @@
 database.db
+scripts.py
 .venv/
 logs/
 public/files/*

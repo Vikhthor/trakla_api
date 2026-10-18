@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import CustomerGroup, User
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, get_datetime
 
 # from fastapi.security import OAuth2PasswordBearer
 
@@ -86,8 +86,8 @@ async def create_customer_group(
     group = CustomerGroup(
         group_name = customer_group.group_name,
         organization_id = customer_group.organization_id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     db.add(group)
     db.commit()
@@ -96,7 +96,7 @@ async def create_customer_group(
 
 @router.put("/{group_id}", status_code=status.HTTP_200_OK)
 async def update_customer_group(
-    group_id: Annotated[int, Path(title="The ID of the customer group to update")],
+    group_id: Annotated[UUID, Path(title="The ID of the customer group to update")],
     customer_group: CustomerGroupModel, 
     db: Annotated[Session, Depends(get_db)]
 ) -> CustomerGroup:
@@ -111,7 +111,7 @@ async def update_customer_group(
         if k == 'organization_id':
             continue
         current_customer_group.sqlmodel_update({k: v})
-    current_customer_group.updated_at = str(datetime.now())
+    current_customer_group.updated_at = get_datetime()
     db.add(current_customer_group)
     db.commit()
     db.refresh(current_customer_group)

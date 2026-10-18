@@ -7,7 +7,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import Vendor, User, Contact, VendorGroup
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, get_datetime
 import sqlalchemy
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -115,8 +115,8 @@ async def create_vendor(
                 organization_id = current_user.organization_id,
                 owner_id=current_user.id,
                 modifier_id=current_user.id,
-                created_at=str(datetime.now()),
-                updated_at=str(datetime.now())
+                created_at=get_datetime(),
+                updated_at=get_datetime()
             )
 
     vendor = Vendor(
@@ -130,8 +130,8 @@ async def create_vendor(
         organization_id = vendor.organization_id or current_user.organization_id,
         owner_id=current_user.id,
         modifier_id=current_user.id,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     try:
         db.add(vendor)
@@ -149,7 +149,7 @@ async def create_vendor(
 
 @router.put("/{vendor_id}", status_code=status.HTTP_200_OK)
 async def update_vendor(
-    vendor_id: Annotated[int, Path(title="The ID of the vendor to update")],
+    vendor_id: Annotated[UUID, Path(title="The ID of the vendor to update")],
     vendor: VendorModel, 
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
@@ -191,18 +191,14 @@ async def update_vendor(
                     organization_id = current_user.organization_id,
                     owner_id=current_user.id,
                     modifier_id=current_user.id,
-                    created_at=str(datetime.now()),
-                    updated_at=str(datetime.now())
+                    created_at=get_datetime(),
+                    updated_at=get_datetime()
                 )
             current_vendor.group = group
             continue
         current_vendor.sqlmodel_update({k: v})
     
-    full_name = vendor_dict.get("first_name")
-    if vendor_dict.get("last_name"):
-        full_name = f"{vendor_dict.get("first_name")} {vendor_dict.get("last_name")}"
-    current_vendor.full_name = full_name
-    current_vendor.updated_at = str(datetime.now())
+    current_vendor.updated_at = get_datetime()
     current_vendor.modifier_id = current_user.id
     db.add(current_vendor)
     db.commit()

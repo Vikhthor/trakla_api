@@ -8,7 +8,7 @@ from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import MaintenanceSchedule, MaintenanceScheduleStatus, MaintenanceScheduleType, \
     MaintenanceSchedulePriority, MaintenanceScheduleAssigneeType, User, OrderItem, AssetType
-from ..utils import FilterParams, get_current_user
+from ..utils import FilterParams, get_current_user, getdate, get_datetime
 
 class MaintenanceScheduleFilterParams(FilterParams):
     organization_id: UUID
@@ -122,6 +122,7 @@ async def get_maintenance_schedules(
     resp_data = [{
         **schedule.model_dump(),
         "assignee": schedule.assignee,
+        "asset_type": schedule.asset_type.asset_type_name,
         "customer_name": schedule.customer.customer_name,
         "maintenance_items": schedule.maintenance_items,
         "created_by": schedule.created_by
@@ -155,9 +156,13 @@ async def create_maintenance_schedule(
         "asset_type": asset_type,
         "owner_id": current_user.id,
         "modifier_id": current_user.id,
-        "created_at": str(datetime.now()),
-        "updated_at": str(datetime.now())
+        "created_at": get_datetime(),
+        "updated_at": get_datetime()
     })
+    next_schedule_date = schedule_dict.get("next_schedule_date")
+    if next_schedule_date:
+        schedule_dict.update({"next_schedule_date": getdate(next_schedule_date)})
+    
     new_schedule = MaintenanceSchedule(**schedule_dict)
     order_items = []
     for itm in maintenance_items:
@@ -190,6 +195,9 @@ async def update_order_item(
         raise HTTPException(status_code=404, detail="Maintenance schedule not found")
     schedule_dict = schedule.model_dump(exclude_unset=True)
     for k, v in schedule_dict.items():
+        if k == "next_schedule_date" and v:
+            v = getdate(v)
+        
         if k == "maintenance_items":
             current_schedule.maintenance_items = []
             for itm in v:
@@ -220,7 +228,7 @@ async def update_order_item(
             continue
         current_schedule.sqlmodel_update({k: v})
     current_schedule.modifier_id = current_user.id
-    current_schedule.updated_at = str(datetime.now())
+    current_schedule.updated_at = get_datetime()
     db.add(current_schedule)
     db.commit()
     db.refresh(current_schedule)

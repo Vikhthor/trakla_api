@@ -8,7 +8,7 @@ from datetime import datetime
 from uuid import UUID
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import Organization, User, File as FileUpload
-from ..utils import FilterParams, get_current_user, upload_file
+from ..utils import FilterParams, get_current_user, upload_file, get_datetime
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -88,8 +88,8 @@ async def create_customer(
         organization_name = organization.organization_name,
         logo = organization.logo,
         address = organization.address,
-        created_at=str(datetime.now()),
-        updated_at=str(datetime.now())
+        created_at=get_datetime(),
+        updated_at=get_datetime()
     )
     db.add(organization)
     db.commit()
@@ -111,7 +111,7 @@ async def update_organization(
     organization_dict = organization.model_dump(exclude_unset=True)
     for k, v in organization_dict.items():
         current_organization.sqlmodel_update({k: v})
-    current_organization.updated_at = str(datetime.now())
+    current_organization.updated_at = get_datetime()
     db.add(current_organization)
     db.commit()
     db.refresh(current_organization)
@@ -165,7 +165,7 @@ async def upload_profile_image(
         )
         db.add(file_upload)
     
-    organization.updated_at = str(datetime.now())
+    organization.updated_at = get_datetime()
     organization.modifier_id = session_user.id
     db.add(organization)
     db.commit()

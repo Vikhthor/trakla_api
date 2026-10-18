@@ -14,5 +14,5 @@ class OrderItem(SQLModel, table=True):
     work_order_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="work_order.id")
     schedule_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="maintenance_schedule.id")
     organization_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="organization.id")
-    created_at: str | None  = Field(default_factory=datetime.now)
-    updated_at: str | None  = Field(default_factory=datetime.now)
+    created_at: datetime | None  = Field(default_factory=datetime.now)
+    updated_at: datetime | None  = Field(default_factory=datetime.now)

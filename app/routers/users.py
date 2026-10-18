@@ -11,7 +11,7 @@ from uuid import UUID
 import secrets, math, random
 from ..db import engine, Session, get_db, select, col, or_
 from ..models import User, Organization, UserRole, Department, File as FileUpload
-from ..utils import FilterParams, get_current_user, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, upload_file
+from ..utils import FilterParams, get_current_user, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, upload_file, get_datetime
 from ..email import sendmail
 from ..config import get_settings
 from ..redis import RedisWrapper
@@ -133,7 +133,7 @@ async def login(
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
-    user.last_login = str(datetime.now())
+    user.last_login = get_datetime()
     user.is_online = True # TODO: Use websocket
     db.add(user)
     db.commit()
@@ -242,8 +242,8 @@ async def invite_user(
                 organization_id = current_user.organization_id,
                 owner_id=current_user.id,
                 modifier_id=current_user.id,
-                created_at=str(datetime.now()),
-                updated_at=str(datetime.now())
+                created_at=get_datetime(),
+                updated_at=get_datetime()
             )
 
     full_name = user_data.first_name
@@ -413,8 +413,8 @@ async def update_user(
                     organization_id = current_user.organization_id,
                     owner_id=current_user.id,
                     modifier_id=current_user.id,
-                    created_at=str(datetime.now()),
-                    updated_at=str(datetime.now())
+                    created_at=get_datetime(),
+                    updated_at=get_datetime()
                 )
             current_user.department = department
             continue
@@ -422,7 +422,7 @@ async def update_user(
 
     full_name = f"{current_user.first_name} {current_user.last_name}"
     current_user.full_name = full_name
-    current_user.updated_at = str(datetime.now())
+    current_user.updated_at = get_datetime()
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
@@ -471,7 +471,7 @@ async def upload_profile_image(
     db.add(file_upload)
     
     # current_user.image = image_url
-    current_user.updated_at = str(datetime.now())
+    current_user.updated_at = get_datetime()
     current_user.modifier_id = session_user.id
     db.add(current_user)
     db.commit()
