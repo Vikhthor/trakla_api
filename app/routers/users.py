@@ -310,6 +310,7 @@ async def invite_user(
 @router.get("/")
 async def get_users(
     filter_query: Annotated[UserFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
 ):
     """
@@ -319,7 +320,9 @@ async def get_users(
     offset = filter_query.offset
     if filter_query.page and not offset:
         offset = limit*(filter_query.page - 1)
-    statement = select(User).offset(offset).limit(limit)
+    statement = select(User).where(
+        User.organization_id == current_user.organization_id
+    ).offset(offset).limit(limit)
     users = db.exec(statement).all()
     users_data = [{
         **user.model_dump(),

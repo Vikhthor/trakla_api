@@ -11,8 +11,8 @@ class Technician(SQLModel, table=True):
     first_name: str
     last_name: str
     full_name: str | None  = Field(default=None)
-    email: str = Field(unique=True, index=True)
-    phone: str = Field(unique=True, index=True)
+    email: str = Field(index=True)
+    phone: str = Field(index=True)
     image: "File" = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": (

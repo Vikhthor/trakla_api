@@ -9,10 +9,13 @@ from ..db import engine, Session, get_db, select, col, or_
 from ..models import Technician, User, File as FileUpload
 from ..utils import FilterParams, get_current_user, upload_file, get_datetime
 from .users import get_password_hash
+from ..email import sendmail
+from ..config import get_settings
 import sqlalchemy
 from sqlalchemy.orm import joinedload, selectinload
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+settings = get_settings()
 
 class TechnicianFilterParams(FilterParams):
     organization_id: UUID
@@ -121,6 +124,27 @@ async def create_technician(
             user_type = "Technician",
             organization_id = technician.organization_id or current_user.organization_id
         )
+        try:
+            email_args = {
+                "app_name": "Trakla",
+                "organization_name": current_user.organization.organization_name,
+                "invitee_name": full_name,
+                "inviter_name": current_user.full_name,
+                "invite_url": f"{settings.app_url}/auth/password-reset?user_id={technician.email}",
+                "expires_in": "48 hours",
+                "company_address": current_user.organization.address or "",
+                "password": technician.password
+            }
+            sendmail(
+                recipients=technician.email,
+                subject=f"You're invited to join {current_user.organization.organization_name}",
+                template="user_invite",
+                args=email_args,
+                delayed=False
+            )
+        except Exception as e:
+            pass
+
     technician = Technician(
         title = technician.title,
         first_name = technician.first_name,

@@ -39,7 +39,11 @@
               </p>
               <p style="margin:0 0 16px 0; font-size:16px; line-height:26px;">
                 {{ inviter_name }} has invited you to join <strong>{{ organization_name }}</strong> on {{ app_name }}.
+                {% if password %}
+                Your login password is <code>{{ password }}</code>
+                {% else %}
                 Create your password and finish setting up your account to get started.
+                {% endif %}
               </p>
             </td>
           </tr>

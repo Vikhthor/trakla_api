@@ -17,8 +17,8 @@ class Contact(SQLModel, table=True):
     first_name: str
     last_name: str | None  = Field(default=None)
     full_name: str | None  = Field(default=None)
-    email: str = Field(unique=True, index=True)
-    phone: str = Field(unique=True, index=True)
+    email: str = Field(index=True)
+    phone: str = Field(index=True)
     gender: ContactGender | None  = Field(default=None)
     image: "File" = Relationship(
         sa_relationship_kwargs={
