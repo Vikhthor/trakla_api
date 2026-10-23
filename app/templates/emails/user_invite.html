@@ -62,10 +62,17 @@
               </v:roundrect>
               <![endif]-->
               <!--[if !mso]><!-- -->
+              {% if password %}
+              <a href="{{ login_url }}" target="_blank"
+                 style="display:inline-block; padding:14px 28px; background-color:#0f6b5c; color:#ffffff; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; font-size:16px; font-weight:bold; line-height:20px; text-decoration:none; border-radius:6px;">
+                Login to your account
+              </a>
+              {% else %}
               <a href="{{ invite_url }}" target="_blank"
                  style="display:inline-block; padding:14px 28px; background-color:#0f6b5c; color:#ffffff; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; font-size:16px; font-weight:bold; line-height:20px; text-decoration:none; border-radius:6px;">
                 Complete your account
               </a>
+              {% endif %}
               <!--<![endif]-->
             </td>
           </tr>
@@ -73,6 +80,12 @@
           <!-- Expiry + fallback link -->
           <tr>
             <td style="padding:0 36px 32px 36px; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:#5b6a73; font-size:14px; line-height:22px;">
+              {% if password %}
+              <p style="margin:0;">
+                If the button doesn't work, copy and paste this link into your browser:<br>
+                <a href="{{ login_url }}" target="_blank" style="color:#0f6b5c; word-break:break-all;">{{ login_url }}</a>
+              </p>
+              {% else %}
               <p style="margin:0 0 12px 0;">
                 This invitation expires in {{ expires_in }}.
               </p>
@@ -80,6 +93,7 @@
                 If the button doesn't work, copy and paste this link into your browser:<br>
                 <a href="{{ invite_url }}" target="_blank" style="color:#0f6b5c; word-break:break-all;">{{ invite_url }}</a>
               </p>
+              {% endif %}
             </td>
           </tr>
 

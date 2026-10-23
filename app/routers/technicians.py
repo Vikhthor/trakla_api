@@ -131,6 +131,7 @@ async def create_technician(
                 "invitee_name": full_name,
                 "inviter_name": current_user.full_name,
                 "invite_url": f"{settings.app_url}/auth/password-reset?user_id={technician.email}",
+                "login_url": f"{settings.app_url}/technician/login",
                 "expires_in": "48 hours",
                 "company_address": current_user.organization.address or "",
                 "password": technician.password

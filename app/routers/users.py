@@ -163,12 +163,29 @@ async def request_otp(email: Annotated[str, Query(title="User email")]):
 
     cache.set_value(f"otp:{tmp_id}", otp, expires_in_sec=300)
 
-    sendmail(
-        recipients=email,
-        subject="Trakla OTP",
-        message=f"Your verification OTP is {otp}", 
-        delayed=False
-    )
+    # sendmail(
+    #     recipients=email,
+    #     subject="Trakla OTP",
+    #     message=f"Your verification OTP is {otp}", 
+    #     delayed=False
+    # )
+    try:
+        email_args = {
+            "app_name": "Trakla",
+            # "user_name": "",
+            "otp_code": otp,
+            "expires_in": "5 minutes"
+        }
+        sendmail(
+            recipients=email,
+            subject="Trakla OTP",
+            template="user_otp",
+            args=email_args,
+            delayed=False
+        )
+    except Exception as e:
+        pass
+
     return {'tmp_id': tmp_id}
 
 @router.post("/signup")
@@ -272,12 +289,17 @@ async def invite_user(
     db.refresh(user)
 
     try:
+        login_url = f"{settings.app_url}/auth/login"
+        if user.user_type.lower() == "technician":
+            login_url = f"{settings.app_url}/technician/login"
         email_args = {
             "app_name": "Trakla",
             "organization_name": current_user.organization.organization_name,
             "invitee_name": full_name,
             "inviter_name": current_user.full_name,
             "invite_url": f"{settings.app_url}/auth/password-reset?user_id={user_data.email}",
+            "login_url": login_url,
+            "password": user_data.password,
             "expires_in": "48 hours",
             "company_address": current_user.organization.address or "",
         }

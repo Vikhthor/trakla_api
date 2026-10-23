@@ -141,6 +141,8 @@ async def get_work_orders(
     filter_conds = {}
     if filter_query.completion_status:
         filter_conds["completion_status"] = filter_query.completion_status
+    if filter_query.assignee_id:
+        filter_conds["assignee_id"] = filter_query.assignee_id
     select_filters = Db.parse_filters(WorkOrder, filter_conds)
     statement = select(WorkOrder).where(
         *select_filters,
