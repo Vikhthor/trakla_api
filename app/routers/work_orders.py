@@ -30,7 +30,7 @@ class OrderItems(BaseModel):
 
 class WorkOrderModel(BaseModel):
     model_config = {"extra": "forbid"}
-    customer_id: UUID | None = None
+    customer_id: UUID
     address: str | None = None
     address_geolocation: str | None = None
     status: WorkOrderStatus | None = "Open"
@@ -48,8 +48,8 @@ class WorkOrderModel(BaseModel):
     require_pow: bool | None = None
     completion_status: WorkOrderCompletionStatus = "Pending"
     currency: Currency | None = "NGN"
-    labour_cost: float | None = None
-    tax: float | None = None
+    labour_cost: float | None = 0
+    tax: float | None = 0
     order_items: list[OrderItems]
     service_request_id: UUID | None = None
 
@@ -74,8 +74,8 @@ class WorkOrderUpdateModel(BaseModel):
     proof_of_work: str | None = None
     completion_status: WorkOrderCompletionStatus | None = None
     currency: Currency | None = None
-    labour_cost: float | None = None
-    tax: float | None = None
+    labour_cost: float | None = 0
+    tax: float | None = 0
     order_items: list[OrderItems] | None = None
     service_request_id: UUID | None = None
 

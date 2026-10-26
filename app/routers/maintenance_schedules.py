@@ -21,7 +21,7 @@ class MaintenanceItems(BaseModel):
 
 class MaintenanceScheduleModel(BaseModel):
     model_config = {"extra": "forbid"}
-    customer_id: UUID | None = None
+    customer_id: UUID
     address: str | None = None
     address_geolocation: str | None = None
     status: MaintenanceScheduleStatus | None = "Active"
@@ -35,15 +35,15 @@ class MaintenanceScheduleModel(BaseModel):
     assignee_type: MaintenanceScheduleAssigneeType | None = "Technician"
     assignee_id: UUID | None = None
     require_pow: bool | None = None
-    currency: str
-    labour_cost: float
-    tax: float
+    currency: str | None = "NGN"
+    labour_cost: float | None = 0
+    tax: float | None = 0
     maintenance_items: list[MaintenanceItems]
     interval: int
     interval_unit: str
     next_schedule_date: str
     end_date: str | None = None
-    reminder_days_before: str
+    reminder_days_before: str | None = None
 
 class MaintenanceScheduleUpdateModel(BaseModel):
     model_config = {"extra": "forbid"}
@@ -61,15 +61,15 @@ class MaintenanceScheduleUpdateModel(BaseModel):
     assignee_type: MaintenanceScheduleAssigneeType | None = "Technician"
     assignee_id: UUID | None = None
     require_pow: bool | None = None
-    currency: str
-    labour_cost: float
-    tax: float
+    currency: str | None = "NGN"
+    labour_cost: float | None = 0
+    tax: float | None = 0
     maintenance_items: list[MaintenanceItems]
     interval: int
     interval_unit: str
     next_schedule_date: str
     end_date: str | None = None
-    reminder_days_before: str
+    reminder_days_before: str | None = None
 
 router = APIRouter(
     prefix="/v1/maintenance-schedules",
@@ -122,7 +122,7 @@ async def get_maintenance_schedules(
     resp_data = [{
         **schedule.model_dump(),
         "assignee": schedule.assignee,
-        "asset_type": schedule.asset_type.asset_type_name,
+        "asset_type": "" if not schedule.asset_type else schedule.asset_type.asset_type_name,
         "customer_name": schedule.customer.customer_name,
         "maintenance_items": schedule.maintenance_items,
         "created_by": schedule.created_by

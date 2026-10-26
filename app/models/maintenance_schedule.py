@@ -55,8 +55,8 @@ class MaintenanceSchedule(SQLModel, table=True):
     assignee: User | None = Relationship(sa_relationship_kwargs={"foreign_keys": "[MaintenanceSchedule.assignee_id]"})
     require_pow: bool | None = Field(default=False)
     currency: str
-    labour_cost: float
-    tax: float
+    labour_cost: float | None = Field(default=None)
+    tax: float | None = Field(default=None)
     interval: int
     interval_unit: str
     next_schedule_date: date | None = Field(default=None, index=True)

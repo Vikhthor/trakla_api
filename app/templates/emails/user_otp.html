@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light">
+  <title>Your {{ app_name }} verification code</title>
+</head>
+<body style="margin:0; padding:0; background-color:#eef1f4; -webkit-text-size-adjust:100%;">
+
+  <!-- Preheader: preview text shown in the inbox list -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:#eef1f4; font-size:1px; line-height:1px;">
+    Your verification code is {{ otp_code }}. It expires in {{ expires_in }}.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#eef1f4;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+               style="width:100%; max-width:560px; background-color:#ffffff; border-radius:8px;">
+
+          <!-- Header -->
+          <tr>
+            <td align="center" style="text-align:center; padding:28px 36px; border-bottom:1px solid #e3e7eb; font-family:Georgia, 'Times New Roman', serif; font-size:22px; font-weight:bold; color:#14323f;">
+              {{ app_name }}
+            </td>
+          </tr>
+
+          <!-- Intro -->
+          <tr>
+            <td align="center" style="text-align:center; padding:36px 36px 8px 36px; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:#27343b;">
+              <h1 style="margin:0 0 16px 0; font-family:Georgia, 'Times New Roman', serif; font-size:26px; line-height:34px; font-weight:bold; color:#14323f;">
+                Verify your identity
+              </h1>
+              <p style="margin:0 0 16px 0; font-size:16px; line-height:26px;">
+                {% if user_name %}Hi {{ user_name }},{% else %}Hi,{% endif %}
+              </p>
+              <p style="margin:0 0 8px 0; font-size:16px; line-height:26px;">
+                Use the code below {{ purpose | default("to verify your account") }}.
+                Enter it in the app to continue.
+              </p>
+            </td>
+          </tr>
+
+          <!-- OTP code -->
+          <tr>
+            <td align="center" style="text-align:center; padding:20px 36px 24px 36px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+                <tr>
+                  <td align="center" style="background-color:#f3f6f8; border:1px solid #d9e0e5; border-radius:8px; padding:16px 28px; font-family:'SFMono-Regular', Menlo, Consolas, 'Courier New', monospace; font-size:36px; line-height:44px; font-weight:bold; letter-spacing:10px; color:#0f6b5c;">
+                    {{ otp_code }}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Expiry + security note -->
+          <tr>
+            <td align="center" style="text-align:center; padding:0 36px 32px 36px; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:#5b6a73; font-size:14px; line-height:22px;">
+              <p style="margin:0 0 12px 0;">
+                This code expires in <strong>{{ expires_in }}</strong>.
+              </p>
+              <p style="margin:0;">
+                For your security, never share this code with anyone. {{ app_name }} will never ask you for it.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="text-align:center; padding:20px 36px 28px 36px; border-top:1px solid #e3e7eb; font-family:-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; color:#7a878f; font-size:13px; line-height:20px;">
+              Didn't request this code? You can safely ignore this email. Your account has not been changed.
+              {% if company_address %}
+              <br><br>
+              {{ app_name }} &middot; {{ company_address }}
+              {% endif %}
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
