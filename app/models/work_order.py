@@ -86,6 +86,17 @@ class WorkOrder(SQLModel, table=True):
             "uselist": True,
         }
     )
+    attachments: list["File"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(WorkOrder.id == foreign(File.record_id), "
+                "File.record_type == 'Work Order', "
+                "File.record_field == 'attachments')"
+            ),
+            "viewonly": True,
+            "uselist": True,
+        }
+    )
     completion_status: WorkOrderCompletionStatus = "Pending"
     workflow_status: str | None = Field(default=None)
     currency: Currency | None = "NGN"

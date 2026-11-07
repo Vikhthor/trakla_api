@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .routers import customer_groups, customers, maintenance_schedules, order_items, organizations, service_requests, users, vendor_groups, work_orders
-from .routers import contacts, asset_types, analytics, vendors, technicians, roles, departments
+from .routers import contacts, asset_types, analytics, vendors, technicians, roles, departments, budgets, files
 
 from .db import create_db_and_tables
 
@@ -56,6 +56,8 @@ app.include_router(asset_types.router)
 app.include_router(roles.router)
 app.include_router(departments.router)
 app.include_router(analytics.router)
+app.include_router(budgets.router)
+app.include_router(files.router)
 
 
 ############## Mock Endpoints ##################

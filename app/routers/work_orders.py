@@ -72,6 +72,7 @@ class WorkOrderUpdateModel(BaseModel):
     assignee_id: UUID | None = None
     require_pow: bool | None = None
     proof_of_work: str | None = None
+    attachments: str | None = None
     completion_status: WorkOrderCompletionStatus | None = None
     currency: Currency | None = None
     labour_cost: float | None = 0
@@ -152,6 +153,7 @@ async def get_work_orders(
     resp_data = [{
         **order.model_dump(),
         "proof_of_work": order.proof_of_work,
+        "attachments": order.attachments,
         "customer_name": order.customer.customer_name,
         "assignee": order.assignee,
         "order_items": order.order_items,
@@ -344,6 +346,48 @@ async def upload_proof_of_work(
         # current_files.append(file.get("url"))
 
     # current_order.proof_of_work = json.dumps(current_files)
+    current_order.updated_at = get_datetime()
+    current_order.modifier_id = current_user.id
+    db.add(current_order)
+    db.commit()
+    db.refresh(current_order)
+    return current_order
+
+@router.put("/upload-attachments/{order_id}", status_code=status.HTTP_200_OK)
+async def upload_attachments(
+    order_id: Annotated[UUID, Path(title="The ID of the work order to update")],
+    attachments: list[UploadFile],
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+):
+    """
+    Upload attachments
+    """
+    attachment_files = []
+    for file in attachments:
+        # if file.content_type not in ALLOWED_TYPES:
+        #     raise HTTPException(status_code=415, detail="Unsupported file type")
+        file_data = upload_file(file)
+        attachment_files.append(file_data)
+
+    current_order = db.get(WorkOrder, order_id)
+    if not current_order:
+        raise HTTPException(status_code=404, detail="Work order not found")
+
+    for file in attachment_files:
+        file_upload = FileUpload(
+            file_name = file.get("filename"),
+            file_type = file.get("file_type"),
+            file_size = file.get("file_size"),
+            formated_size = file.get("formated_size"),
+            file_url = file.get("url"),
+            record_type = "Work Order",
+            record_id = current_order.id,
+            record_field = "attachments",
+            owner_id = current_user.id
+        )
+        db.add(file_upload)
+
     current_order.updated_at = get_datetime()
     current_order.modifier_id = current_user.id
     db.add(current_order)

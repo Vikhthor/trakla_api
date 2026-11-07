@@ -23,3 +23,7 @@ from .workflow_state import WorkflowState
 from .workflow_transition import WorkflowTransition
 from .workflow import Workflow
 from .file import File
+from .budget import Budget
+from .budget_item import BudgetItem
+from .budget_transaction import BudgetTransaction
+from .recurring_transaction import RecurringTransaction
