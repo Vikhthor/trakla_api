@@ -137,13 +137,34 @@ async def get_budget_items(
         node = nodes[row["id"]]
         parent = nodes.get(row.get("parent_category_id"))   # None if no parent or parent not found
         if parent is not None and parent is not node:
-            parent["budget_amount"] += node.get("budget_amount")
-            parent["actual_amount"] += node.get("actual_amount")
-            parent["balance"] += (node.get("budget_amount") - node.get("actual_amount"))
+            # parent["budget_amount"] += node.get("budget_amount")
+            # parent["actual_amount"] += node.get("actual_amount")
+            # parent["balance"] += (node.get("budget_amount") - node.get("actual_amount"))
             parent["children"].append(node)
         else:
             roots.append(node)
 
+    def set_item_total(item):
+        children = item.get("children") or []
+        total_budget_amount = 0
+        total_actual_amount = 0
+        if not item.get("is_category"):
+            total_budget_amount += item.get("budget_amount")
+            total_actual_amount += item.get("actual_amount")
+            return item.get("budget_amount"), item.get("actual_amount")
+        else:
+            for child in children:
+                budget_amount, actual_amount = set_item_total(child)
+                total_budget_amount += budget_amount
+                total_actual_amount += actual_amount
+        
+        item["budget_amount"] = total_budget_amount
+        item["actual_amount"] = total_actual_amount
+        return total_budget_amount, total_actual_amount
+
+    for item in roots:
+        set_item_total(item)
+    
     return roots
     # return resp_data
 
