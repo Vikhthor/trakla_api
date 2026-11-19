@@ -6,7 +6,8 @@ import random
 from datetime import datetime, date
 from uuid import UUID
 from ..db import Session, get_db, select, col, or_, get_count, func, case
-from ..models import WorkOrder, User, Customer, ServiceRequest, Technician
+from ..models import WorkOrder, User, Customer, ServiceRequest, Technician, \
+    Attendance, LeaveApplication, AttendanceRequest, Employee
 from ..utils import FilterParams, get_current_user, getdate, get_datetime, add_to_date, get_first_day, flt
 from ..config import get_settings
 
@@ -14,6 +15,7 @@ app_settings = get_settings()
 
 class AnalyticsFilterParams(FilterParams):
     organization_id: UUID
+    date: str | None = None
     customer_id: UUID | None = None
     from_date: str | None = None
     to_date: str | None = None
@@ -299,4 +301,110 @@ async def get_operation_highlights(
         "top_technicians": top_technicians,
         "pending_maintenance": pending_maintenance
     }
+    return resp_data
+
+@router.get("/attendance-timeline")
+async def get_daily_attendance_count(
+    filter_query: Annotated[AnalyticsFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+):
+    """
+       Get filtered attendance list
+    """
+    attendance_query_filters = [Attendance.organization_id == current_user.organization_id]
+    # if filter_query.employee_id:
+    #     query_filters.append(getattr(Attendance,"employee_id") == filter_query.employee_id)
+    if filter_query.from_date:
+        attendance_query_filters.append(getattr(Attendance,"attendance_date") >= getdate(filter_query.from_date))
+    if filter_query.to_date:
+        attendance_query_filters.append(getattr(Attendance,"attendance_date") <= getdate(filter_query.to_date))
+
+    leave_query_filters = [
+        LeaveApplication.organization_id == current_user.organization_id,
+        LeaveApplication.status == "Approved"
+    ]
+    if filter_query.from_date:
+        leave_query_filters.append(getattr(LeaveApplication,"from_date") >= getdate(filter_query.from_date))
+    if filter_query.to_date:
+        leave_query_filters.append(getattr(LeaveApplication,"from_date") <= getdate(filter_query.to_date))
+
+    attendance_list = db.exec(statement = select(Attendance).where(
+        *attendance_query_filters
+    )).all()
+
+    leave_list = db.exec(statement = select(LeaveApplication).where(
+        *leave_query_filters
+    )).all()
+
+    timeline_map = {}
+    for event in attendance_list:
+        event_date = getdate(event.attendance_date)
+        if timeline_map.get(event_date):
+            if timeline_map.get(event_date).get(event.status):
+                timeline_map[event_date][event.status] += 1
+            else:
+                timeline_map[event_date][event.status] = 1
+        else:
+            timeline_map[event_date] = {event.status: 1}
+
+    for event in leave_list:
+        current_date = getdate(event.from_date)
+        end_date = getdate(event.to_date)
+        while current_date <= end_date:
+            event_date = getdate(current_date)
+            if timeline_map.get(event_date):
+                if timeline_map.get(event_date).get("On Leave"):
+                    continue
+                timeline_map[event_date]["On Leave"] = 1
+            else:
+                timeline_map[event_date] = {"On Leave": 1}
+            current_date = add_to_date(current_date, days=1)
+    
+    return timeline_map
+
+@router.get("/hr-stats")
+async def get_hr_stats(
+    filter_query: Annotated[AnalyticsFilterParams, Query()],
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+):
+    """
+       Get HR dashboard stats
+    """
+
+    total_employees = get_count(Employee, db, {
+        "organization_id": current_user.organization_id
+    })
+    current_attendance = get_count(Attendance, db, {
+        "organization_id": current_user.organization_id,
+        "attendance_date": getdate()
+    })
+    pending_leave_applications = get_count(LeaveApplication, db, {
+        "organization_id": current_user.organization_id,
+        "status": "Open"
+    })
+    pending_attendance_reqs = get_count(AttendanceRequest, db, {
+        "organization_id": current_user.organization_id,
+        "status": "Open"
+    })
+    
+    resp_data = [
+        {
+            "type": "total_employees",
+            "result": total_employees
+        },
+        {
+            "type": "current_attendance",
+            "result": current_attendance
+        },
+        {
+            "type": "pending_leave_applications",
+            "result": pending_leave_applications
+        },
+        {
+            "type": "pending_attendance_requests",
+            "result": pending_attendance_reqs
+        }
+    ]
     return resp_data

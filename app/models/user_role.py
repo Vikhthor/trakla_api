@@ -9,7 +9,7 @@ from .user import User
 class UserRole(SQLModel, table=True):
     __tablename__ = "user_role"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    role_name: str = Field(unique=True, index=True)
+    role_name: str = Field(index=True)
     users: list[User] = Relationship(
         back_populates="roles", 
         link_model=UserRoles,

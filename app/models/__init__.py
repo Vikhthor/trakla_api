@@ -27,3 +27,13 @@ from .budget import Budget
 from .budget_item import BudgetItem
 from .budget_transaction import BudgetTransaction
 from .recurring_transaction import RecurringTransaction
+from .employee import Employee
+from .attendance import Attendance
+from .attendance_request import AttendanceRequest
+from .attendance_event import AttendanceEvent
+from .employee_shift import EmployeeShift
+from .employee_holiday import EmployeeHoliday
+from .hr_settings import HRSettings
+from .leave_application import LeaveApplication
+from .leave_type import LeaveType
+from .shift_assignment import ShiftAssignment

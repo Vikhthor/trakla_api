@@ -28,7 +28,7 @@ class CustomerGroupFilterParams(FilterParams):
 class CustomerGroupModel(BaseModel):
     model_config = {"extra": "forbid"}
     group_name: str
-    organization_id: int | None
+    organization_id: UUID | None
 
 
 router = APIRouter(

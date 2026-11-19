@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 import secrets, math, random
 from ..db import engine, Session, get_db, select, col, or_
-from ..models import User, Organization, UserRole, Department, File as FileUpload
-from ..utils import FilterParams, get_current_user, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, upload_file, get_datetime
+from ..models import User, Organization, UserRole, UserRoles, UserPermission, Department, File as FileUpload
+from ..utils import FilterParams, get_current_user, get_user_permissions, PERMISSION_RESOURCES, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, upload_file, get_datetime
 from ..email import sendmail
 from ..config import get_settings
 from ..redis import RedisWrapper
@@ -140,6 +140,7 @@ async def login(
     db.refresh(user)
     user_data = {
         **user.model_dump(),
+        "user_permissions": get_user_permissions(user),
         "image": "" if not user.image else user.image.file_name
     }
     return {"access_token": access_token, "token_type": "bearer", "user": user_data}
@@ -148,6 +149,7 @@ async def login(
 async def get_session_user(current_user: Annotated[UserModel, Depends(get_current_user)]):
     user_data = {
         **current_user.model_dump(),
+        "user_permissions": get_user_permissions(current_user),
         "image": "" if not current_user.image else current_user.image.file_name
     }
     return user_data
@@ -188,6 +190,46 @@ async def request_otp(email: Annotated[str, Query(title="User email")]):
 
     return {'tmp_id': tmp_id}
 
+def get_admin_role(organization_id, current_user, db):
+    """
+    Get Administrator role
+    """
+    user_role = db.exec(select(UserRole).where(
+        UserRole.role_name == "Administrator",
+        UserRole.organization_id == organization_id
+    )).first()
+    if not user_role:
+        role_permissions = []
+        for resource in PERMISSION_RESOURCES:
+            perm_exists = db.exec(select(UserPermission).where(
+                UserPermission.resource == resource,
+                UserPermission.can_read is True,
+                UserPermission.can_write is True,
+                UserPermission.can_create is True,
+                UserPermission.can_delete is True
+            )).first()
+            if perm_exists:
+                role_permissions.append(perm_exists)
+            else:
+                role_permissions.append(UserPermission(
+                    resource = resource,
+                    can_read = True,
+                    can_write = True,
+                    can_create = True,
+                    can_delete = True
+                ))
+        user_role = UserRole(
+            role_name = "Employee",
+            permissions = role_permissions,
+            organization_id = organization_id,
+            owner_id=current_user.id,
+            modifier_id=current_user.id,
+            created_at=get_datetime(),
+            updated_at=get_datetime()
+        )
+        db.add(user_role)
+    return user_role
+
 @router.post("/signup")
 async def signup_user(
     form_data: Annotated[SignUpData, Body()],
@@ -196,10 +238,26 @@ async def signup_user(
     """
         Create new customer
     """
-    # TODO verify form_data.otp with form_data.tmp_id
+    otp = form_data.otp
+    tmp_id = form_data.tmp_id
+    if otp and tmp_id:
+        stored_otp = cache.get_value(f"otp:{tmp_id}")
+        if stored_otp != otp:
+            raise HTTPException(status_code=403, detail="Invalid OTP")
+    
     full_name = form_data.first_name
     if form_data.last_name:
         full_name = f"{form_data.first_name} {form_data.last_name}"
+
+    organization = None
+    is_default_user = False
+    if not form_data.organization_id and form_data.organization:
+        is_default_user = True
+        organization = Organization(**form_data.organization.model_dump())
+        db.add(organization)
+    elif form_data.organization_id:
+        organization = db.get(Organization, form_data.organization_id)
+    
     user = User(
         first_name = form_data.first_name,
         last_name = form_data.last_name,
@@ -209,9 +267,13 @@ async def signup_user(
         address = form_data.address,
         user_type = form_data.user_type,
         organization_id = form_data.organization_id,
-        organization = Organization(**form_data.organization.model_dump()),
+        organization = organization,
         password = get_password_hash(form_data.password)
     )
+    if is_default_user:
+        admin_role = get_admin_role(organization.id, user, db)
+        user.roles = [admin_role]
+    
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -411,6 +473,7 @@ async def update_user(
             raise HTTPException(status_code=403, detail="Invalid OTP")
         is_verified = True
 
+    is_admin = False
     for k, v in user_dict.items():
         if k == 'organization_id':
             continue
@@ -424,6 +487,8 @@ async def update_user(
             for user_role in user_roles:
                 role = db.exec(select(UserRole).where(UserRole.id == user_role.id).first())
                 if role:
+                    if role.role_name == "Administrator":
+                        is_admin = True
                     roles.append(role)
             v = roles
         if k == "department_name":
@@ -444,6 +509,18 @@ async def update_user(
             current_user.department = department
             continue
         current_user.sqlmodel_update({k: v})
+
+    if not is_admin:
+        admin_role = get_admin_role(current_user.organization_id, current_user, db)
+        admin_user_exists = db.exec(select(User)\
+            .join(UserRoles)\
+            .where(
+                User.organization_id == current_user.organization_id,
+                UserRoles.user_id == User.id,
+                UserRole.id == admin_role.id
+            )).first()
+        if not admin_user_exists:
+            raise HTTPException(status_code=403, detail="At least one Administrator user must exist")
 
     full_name = f"{current_user.first_name} {current_user.last_name}"
     current_user.full_name = full_name

@@ -8,6 +8,8 @@ from .user import User
 class Department(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     department_name: str = Field(unique=True, index=True)
+    description: str | None = Field(default=None)
+    employees: list["Employee"] = Relationship(back_populates="department", sa_relationship_kwargs={"foreign_keys": "[Employee.department_id]"})
     users: list[User] = Relationship(back_populates="department", sa_relationship_kwargs={"foreign_keys": "[User.department_id]"})
     organization_id: uuid.UUID | None  = Field(default=None, index=True, foreign_key="organization.id")
     owner_id: uuid.UUID | None = Field(default=None, index=True, foreign_key="user.id")

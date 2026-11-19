@@ -108,7 +108,7 @@ async def create_role(
             UserPermission.resource == perm.resource,
             UserPermission.can_read == perm.can_read,
             UserPermission.can_write == perm.can_write,
-            UserPermission.can_create == perm.can_write,
+            UserPermission.can_create == perm.can_create,
             UserPermission.can_delete == perm.can_delete
         )).first()
         if perm_exists:
@@ -118,9 +118,16 @@ async def create_role(
                 resource = perm.resource,
                 can_read = perm.can_read,
                 can_write = perm.can_write,
-                can_create = perm.can_write,
+                can_create = perm.can_create,
                 can_delete = perm.can_delete
             ))
+    role_name_exists = db.exec(select(UserRole).where(
+        UserRole.organization_id == current_user.organization_id,
+        UserRole.role_name == role.role_name
+    )).first()
+    if role_name_exists:
+        raise HTTPException(status_code=400, detail=f"Role: '{role.role_name}' already exist")
+
     role = UserRole(
         role_name = role.role_name,
         permissions = role_permissions,
@@ -148,6 +155,10 @@ async def update_role(
     current_role = db.get(UserRole, role_id)
     if not current_role:
         raise HTTPException(status_code=404, detail="Customer group not found")
+
+    if current_role.role_name == "Administrator":
+        return current_role
+    
     role_dict = role.model_dump(exclude_unset=True)
     for k, v in role_dict.items():
         if k == 'organization_id':

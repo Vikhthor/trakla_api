@@ -74,6 +74,66 @@ def validate_user_type(user: User, allowed_types: str | list[str] = "system"):
     if user.user_type not in allowed_types:
         raise HTTPException(status_code=403, detail="Not allowed")
 
+PERMISSION_RESOURCES = [
+    "Work Order",
+    "Service Request",
+    "Maintenance Schedule",
+    "User",
+    "Role",
+    "Technician",
+    "Contact",
+    "Vendor",
+    "Facility",
+    "Budget",
+    "Employee",
+    "Employee Holiday",
+    "Employee Attendance",
+    "Attendance Request",
+    "Employee Shift",
+    "Leave Type",
+    "Leave Application",
+    "Department",
+    "HR Settings"
+]
+
+def get_user_permissions(user: User):
+    """
+    Get permissions for a user
+    """
+    user_permissions = {}
+    if user.roles:
+        for role in user.roles:
+            role_permissions = role.permissions
+            if role_permissions:
+                for perm in role_permissions:
+                    if user_permissions.get(perm.resource):
+                        allowed_actions = {}
+                        if perm.can_read:
+                            allowed_actions["read"] = perm.can_read
+                        if perm.can_write:
+                            allowed_actions["write"] = perm.can_write
+                        if perm.can_create:
+                            allowed_actions["create"] = perm.can_create
+                        if perm.can_delete:
+                            allowed_actions["delete"] = perm.can_delete
+                        user_permissions[perm.resource].update(allowed_actions)
+                    else:
+                        user_permissions[perm.resource] = {
+                            "read": perm.can_read,
+                            "write": perm.can_write,
+                            "create": perm.can_create,
+                            "delete": perm.can_delete
+                        }
+    return user_permissions
+
+def validate_user_permissions(user: User, resource: str, action: str = "read"):
+    user_permissions = get_user_permissions(user)
+    is_permitted = False
+    if user_permissions.get(resource):
+        is_permitted = user_permissions[resource].get(action)
+    if not is_permitted:
+        raise HTTPException(status_code=403, detail="Not permitted")
+
 BASE_DIR = FilePath(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "public" / "files"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

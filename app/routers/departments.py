@@ -28,7 +28,8 @@ class DepartmentFilterParams(FilterParams):
 class DepartmentModel(BaseModel):
     model_config = {"extra": "forbid"}
     department_name: str
-    organization_id: int | None
+    description: str | None = None
+    organization_id: UUID | None
 
 
 router = APIRouter(
@@ -73,7 +74,12 @@ async def get_departments(
     ).offset(offset).limit(limit)
     # statement = select(Hero).where(Hero.name == "Spider-Boy")
     departments = db.exec(statement).all()
-    return departments
+    resp_data = [{
+        **department.model_dump(),
+        "employees": department.employees,
+        "created_by": department.created_by
+    } for department in departments]
+    return resp_data
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_department(
@@ -85,6 +91,7 @@ async def create_department(
     """
     group = Department(
         department_name = department.department_name,
+        description = department.description,
         organization_id = department.organization_id,
         created_at=get_datetime(),
         updated_at=get_datetime()
