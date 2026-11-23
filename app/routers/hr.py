@@ -961,19 +961,28 @@ async def create_attendance_event(
             attendance.out_time = get_datetime()
             db.add(attendance)
     else:
-        attendance = Attendance(
-            employee_id = attendance_event.employee_id,
-            attendance_date = getdate(attendance_event.event_time),
-            status = "Present",
-            in_time = get_datetime() if attendance_event.event_type == "In" else None,
-            out_time = get_datetime() if attendance_event.event_type == "Out" else None,
-            employee_shift_id = attendance_event.employee_shift_id,
-            organization_id = attendance_event.organization_id or current_user.organization_id,
-            owner_id = current_user.id,
-            modifier_id = current_user.id,
-            created_at=get_datetime(),
-            updated_at=get_datetime()
-        )
+        attendance = db.exec(select(Attendance).where(
+            Attendance.organization_id == current_user.organization.id,
+            Attendance.attendance_date == getdate(attendance_event.event_time)
+        )).first()
+        if attendance:
+            if attendance_event.event_type == "Out":
+                attendance.out_time = get_datetime()
+                db.add(attendance)
+        else:
+            attendance = Attendance(
+                employee_id = attendance_event.employee_id,
+                attendance_date = getdate(attendance_event.event_time),
+                status = "Present",
+                in_time = get_datetime() if attendance_event.event_type == "In" else None,
+                out_time = get_datetime() if attendance_event.event_type == "Out" else None,
+                employee_shift_id = attendance_event.employee_shift_id,
+                organization_id = attendance_event.organization_id or current_user.organization_id,
+                owner_id = current_user.id,
+                modifier_id = current_user.id,
+                created_at=get_datetime(),
+                updated_at=get_datetime()
+            )
 
     new_attendance_event = AttendanceEvent(
         employee_id = attendance_event.employee_id,
@@ -1216,7 +1225,7 @@ async def get_attendance_list(
 
     statement = select(Attendance).where(
         *query_filters
-    ).offset(offset).limit(limit)
+    ).offset(offset).limit(limit).order_by(Attendance.created_at.desc()) # pylint: disable=no-member    (pylint)
     attendance_list = db.exec(statement).all()
     resp_data = [{
         **attendance.model_dump(),
@@ -1328,7 +1337,7 @@ async def get_employees(
     
     statement = select(Employee).where(
         *query_filters
-    ).offset(offset).limit(limit)
+    ).offset(offset).limit(limit).order_by(Employee.created_at.desc()) # pylint: disable=no-member    (pylint)
     employees = db.exec(statement).all()
     resp_data = [{
         **employee.model_dump(),
