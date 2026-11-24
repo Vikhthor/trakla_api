@@ -201,7 +201,7 @@ async def update_budget_item(
     budget_item: BudgetItemModel, 
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)]
-) -> Budget:
+) -> BudgetItem:
     """
         Update existing budget
     """
