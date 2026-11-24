@@ -1592,3 +1592,21 @@ async def upload_profile_image(
     db.commit()
     db.refresh(current_employee)
     return current_employee
+
+@router.delete("/employee/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_employee(
+    employee_id: Annotated[UUID, Path(title="The ID of the employee to delete")],
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)]
+) -> None:
+    """
+        Delete existing employee
+    """
+    current_employee = db.get(Employee, employee_id)
+    if not current_employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    if current_employee.organization_id != current_user.organization_id:
+        return
+    db.delete(current_employee)
+    db.commit()
+    return
