@@ -84,6 +84,7 @@ PERMISSION_RESOURCES = [
     "Contact",
     "Vendor",
     "Facility",
+    "Report",
     "Budget",
     "Employee",
     "Employee Holiday",
@@ -93,7 +94,8 @@ PERMISSION_RESOURCES = [
     "Leave Type",
     "Leave Application",
     "Department",
-    "HR Settings"
+    "HR Settings",
+    "Organization"
 ]
 
 def get_user_permissions(user: User):

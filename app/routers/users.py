@@ -219,7 +219,7 @@ def get_admin_role(organization_id, current_user, db):
                     can_delete = True
                 ))
         user_role = UserRole(
-            role_name = "Employee",
+            role_name = "Administrator",
             permissions = role_permissions,
             organization_id = organization_id,
             owner_id=current_user.id,
